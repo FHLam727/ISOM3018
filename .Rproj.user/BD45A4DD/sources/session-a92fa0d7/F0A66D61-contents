@@ -115,7 +115,7 @@ cat("\nTrain set 最終維度:", nrow(train_df), "rows x", ncol(train_df), "cols
 # 確保 test set 係真實數據分佈
 
 recipe_test <- recipe(default_flag ~ ., data = train_raw) %>%
-  step_dummy(all_nominal_predictors(), one_hot = TRUE)
+  step_dummy(all_nominal_predictors(), one_hot = FALSE)
 
 prep_test <- prep(recipe_test, training = train_raw)
 test_df   <- bake(prep_test, new_data = test_df)
