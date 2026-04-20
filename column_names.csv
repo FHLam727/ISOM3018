@@ -9,16 +9,13 @@ missed_payments
 app_usage_frequency
 debt_to_income_ratio
 risk_score
-employment_type_Salaried
 employment_type_Self.Employed
 employment_type_Student
 employment_type_Unemployed
-product_category_Beauty
 product_category_Electronics
 product_category_Fashion
 product_category_Home
 product_category_Sports
-location_Australia
 location_Canada
 location_Germany
 location_India

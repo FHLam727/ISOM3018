@@ -93,7 +93,7 @@ recipe_smote <- recipe(default_flag ~ ., data = train_raw) %>%
   # Step 1: 將 factor 轉成 dummy variables (one-hot encoding)
   #         reference = FALSE 即係每個 category 都有自己嘅 column
   #         (KNN 同 Logistic Regression 需要，RF 其實唔需要但唔影響)
-  step_dummy(all_nominal_predictors(), one_hot = TRUE) %>%
+  step_dummy(all_nominal_predictors(), one_hot = FALSE) %>%
   
   # Step 2: SMOTE
   #         over_ratio = 1 即係將少數 class 過採樣到同多數 class 一樣多
@@ -115,7 +115,7 @@ cat("\nTrain set 最終維度:", nrow(train_df), "rows x", ncol(train_df), "cols
 # 確保 test set 係真實數據分佈
 
 recipe_test <- recipe(default_flag ~ ., data = train_raw) %>%
-  step_dummy(all_nominal_predictors(), one_hot = TRUE)
+  step_dummy(all_nominal_predictors(), one_hot = FALSE)
 
 prep_test <- prep(recipe_test, training = train_raw)
 test_df   <- bake(prep_test, new_data = test_df)
