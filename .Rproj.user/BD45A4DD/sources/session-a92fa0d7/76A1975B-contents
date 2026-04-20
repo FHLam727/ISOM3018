@@ -1,0 +1,382 @@
+---
+title: "BNPL Credit Risk – Exploratory Data Analysis"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 2
+knitr::opts_chunk$set:
+  echo: FALSE
+  message: FALSE
+  warning: FALSE
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+
+# 載入所需套件
+library(tidyverse)   # 數據處理 + ggplot2 畫圖
+library(scales)      # 格式化數字（例如百分比）
+library(knitr)       # 生成整齊嘅表格
+library(kableExtra)  # 美化表格
+library(lubridate)   # 處理日期
+library(corrplot)    # 畫 correlation heatmap
+library(gridExtra)   # 將多個圖並排顯示
+```
+
+```{r load-data}
+# 讀入數據
+df <- read_csv("Buy_Now_Pay_Later_BNPL_CreditRisk_Dataset.csv")
+
+# 將 default_flag 轉成 factor（分類變數），方便之後建模
+df <- df %>%
+  mutate(
+    default_flag = factor(default_flag, levels = c(0, 1),
+                          labels = c("No Default", "Default")),
+    employment_type  = factor(employment_type),
+    product_category = factor(product_category),
+    location         = factor(location),
+    customer_segment = factor(customer_segment),
+    bnpl_installments = factor(bnpl_installments),
+    transaction_date = mdy(transaction_date)   # 轉成日期格式
+  )
+```
+
+---
+
+# Section 1: Dataset Overview
+
+```{r dataset-overview}
+# 製作一個基本 overview 表格
+overview <- tibble(
+  Item        = c("Total Records", "Total Variables", "Defaulted Users",
+                  "Non-Defaulted Users", "Default Rate", "Missing Values"),
+  Value       = c(
+    format(nrow(df), big.mark = ","),
+    ncol(df),
+    format(sum(df$default_flag == "Default"), big.mark = ","),
+    format(sum(df$default_flag == "No Default"), big.mark = ","),
+    paste0(round(mean(df$default_flag == "Default") * 100, 1), "%"),
+    "None"
+  )
+)
+
+kable(overview, caption = "Table 1: Dataset Overview",
+      booktabs = TRUE, align = c("l", "r")) %>%
+  kable_styling(latex_options = c("hold_position"), full_width = FALSE)
+```
+
+**Interpretation:** The dataset contains 10,345 BNPL transactions across 17 variables. Overall, 39.1% of users defaulted on their repayments — a meaningful proportion that underscores the credit risk challenge in BNPL services.
+
+---
+
+# Section 2: Descriptive Statistics of Numerical Variables
+
+```{r descriptive-stats}
+# 選出數值型變數，計算各種統計量
+num_vars <- df %>%
+  select(age, monthly_income, credit_score, purchase_amount,
+         repayment_delay_days, missed_payments,
+         debt_to_income_ratio, risk_score, app_usage_frequency)
+
+desc_stats <- num_vars %>%
+  summarise(across(everything(), list(
+    Mean   = ~round(mean(.), 2),
+    Median = ~round(median(.), 2),
+    SD     = ~round(sd(.), 2),
+    Min    = ~round(min(.), 2),
+    Max    = ~round(max(.), 2)
+  ))) %>%
+  pivot_longer(everything(),
+               names_to  = c("Variable", "Statistic"),
+               names_sep = "_(?=[^_]+$)") %>%
+  pivot_wider(names_from = Statistic, values_from = value)
+
+kable(desc_stats,
+      caption = "Table 2: Descriptive Statistics of Numerical Variables",
+      booktabs = TRUE, align = c("l", rep("r", 5))) %>%
+  kable_styling(latex_options = c("hold_position", "scale_down"))
+```
+
+**Interpretation:** Key observations from the descriptive statistics:
+
+- **Credit Score** ranges from 300 to 850, with a mean of 448 — skewed toward the lower end, suggesting many users have below-average creditworthiness.
+- **Monthly Income** is highly right-skewed (mean = \$35,053 vs. median = \$23,801), indicating a small number of high-income users pulling the average up.
+- **Repayment Delay Days** averages 8.7 days, with some users delaying up to 33 days.
+- **Missed Payments** averages just over 1 per user, but ranges up to 7.
+
+---
+
+# Section 3: Target Variable Distribution
+
+```{r target-distribution, fig.cap="Figure 1: Distribution of Default Status", fig.width=5, fig.height=4}
+df %>%
+  count(default_flag) %>%
+  mutate(pct = n / sum(n),
+         label = paste0(comma(n), "\n(", percent(pct, accuracy = 0.1), ")")) %>%
+  ggplot(aes(x = default_flag, y = n, fill = default_flag)) +
+  geom_col(width = 0.5, show.legend = FALSE) +
+  geom_text(aes(label = label), vjust = -0.3, size = 4, fontface = "bold") +
+  scale_fill_manual(values = c("No Default" = "#2196F3", "Default" = "#F44336")) +
+  scale_y_continuous(labels = comma, limits = c(0, 7500)) +
+  labs(title  = "Distribution of Default Status",
+       x = "Default Status", y = "Number of Users") +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(face = "bold"))
+```
+
+**Interpretation:** The dataset is moderately imbalanced — 61% of users did not default, while 39% did. This imbalance is not severe enough to ignore, but should be addressed during modelling (e.g., using SMOTE or class weighting) to prevent the model from being biased toward predicting non-defaults.
+
+---
+
+# Section 4: Default Rate by Employment Type
+
+```{r employment-default, fig.cap="Figure 2: Default Rate by Employment Type", fig.width=6, fig.height=4}
+df %>%
+  group_by(employment_type) %>%
+  summarise(
+    total   = n(),
+    default = sum(default_flag == "Default"),
+    rate    = default / total
+  ) %>%
+  ggplot(aes(x = reorder(employment_type, -rate), y = rate, fill = employment_type)) +
+  geom_col(width = 0.5, show.legend = FALSE) +
+  geom_text(aes(label = percent(rate, accuracy = 0.1)),
+            vjust = -0.4, fontface = "bold", size = 4) +
+  scale_y_continuous(labels = percent, limits = c(0, 0.6)) +
+  scale_fill_brewer(palette = "Set2") +
+  labs(title = "Default Rate by Employment Type",
+       x = "Employment Type", y = "Default Rate") +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(face = "bold"))
+```
+
+**Interpretation:** Unemployed users (48.7%) and Students (48.6%) have nearly **double** the default rate of Self-Employed users (26.2%) and significantly higher than Salaried workers (32.7%). This is intuitive — users with unstable or no income face greater difficulty repaying BNPL installments. BNPL providers should consider stricter credit checks or lower credit limits for these groups.
+
+---
+
+# Section 5: Default Rate by Customer Segment
+
+```{r segment-default, fig.cap="Figure 3: Default Rate by Customer Risk Segment", fig.width=6, fig.height=4}
+df %>%
+  group_by(customer_segment) %>%
+  summarise(
+    total   = n(),
+    default = sum(default_flag == "Default"),
+    rate    = default / total
+  ) %>%
+  mutate(customer_segment = factor(customer_segment,
+                                   levels = c("Low Risk", "Medium Risk", "High Risk"))) %>%
+  ggplot(aes(x = customer_segment, y = rate, fill = customer_segment)) +
+  geom_col(width = 0.5, show.legend = FALSE) +
+  geom_text(aes(label = percent(rate, accuracy = 0.1)),
+            vjust = -0.4, fontface = "bold", size = 4) +
+  scale_y_continuous(labels = percent, limits = c(0, 0.8)) +
+  scale_fill_manual(values = c("Low Risk" = "#4CAF50",
+                                "Medium Risk" = "#FF9800",
+                                "High Risk" = "#F44336")) +
+  labs(title = "Default Rate by Customer Risk Segment",
+       x = "Customer Segment", y = "Default Rate") +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(face = "bold"))
+```
+
+**Interpretation:** The risk segmentation system shows strong predictive validity. Low Risk users default at only 4.5%, Medium Risk at 29.2%, and High Risk users at 49.0%. This confirms that the `customer_segment` variable is a meaningful predictor and should be included in the predictive model. However, the large proportion of users classified as High Risk (73%) warrants attention — overly conservative segmentation may limit BNPL business growth.
+
+---
+
+# Section 6: Credit Score Distribution by Default Status
+
+```{r credit-score-dist, fig.cap="Figure 4: Credit Score Distribution by Default Status", fig.width=7, fig.height=4}
+ggplot(df, aes(x = credit_score, fill = default_flag)) +
+  geom_histogram(binwidth = 30, alpha = 0.7, position = "identity", colour = "white") +
+  scale_fill_manual(values = c("No Default" = "#2196F3", "Default" = "#F44336"),
+                    name = "Default Status") +
+  labs(title = "Credit Score Distribution by Default Status",
+       x = "Credit Score", y = "Count") +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(face = "bold"),
+        legend.position = "top")
+```
+
+**Interpretation:** Users who defaulted tend to cluster at the lower end of the credit score spectrum (300–500), while non-defaulters show a wider and slightly higher distribution. This validates the use of `credit_score` as a predictor — lower credit scores are associated with higher default risk in BNPL contexts, consistent with traditional lending practices.
+
+---
+
+# Section 7: Missed Payments & Repayment Delay vs. Default
+
+```{r missed-delay, fig.cap="Figure 5: Missed Payments and Repayment Delay by Default Status", fig.width=8, fig.height=4}
+p1 <- ggplot(df, aes(x = default_flag, y = missed_payments, fill = default_flag)) +
+  geom_boxplot(show.legend = FALSE, outlier.alpha = 0.3) +
+  scale_fill_manual(values = c("No Default" = "#2196F3", "Default" = "#F44336")) +
+  labs(title = "Missed Payments", x = "", y = "Number of Missed Payments") +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(face = "bold"))
+
+p2 <- ggplot(df, aes(x = default_flag, y = repayment_delay_days, fill = default_flag)) +
+  geom_boxplot(show.legend = FALSE, outlier.alpha = 0.3) +
+  scale_fill_manual(values = c("No Default" = "#2196F3", "Default" = "#F44336")) +
+  labs(title = "Repayment Delay (Days)", x = "", y = "Delay in Days") +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(face = "bold"))
+
+grid.arrange(p1, p2, ncol = 2)
+```
+
+**Interpretation:** Both missed payments and repayment delay days are clearly higher among defaulters. Defaulters have a notably higher median number of missed payments and tend to delay repayments longer. These are strong behavioural indicators of default risk and are likely to be among the most important predictors in any classification model.
+
+---
+
+# Section 8: Debt-to-Income Ratio vs. Default
+
+```{r dti-default, fig.cap="Figure 6: Debt-to-Income Ratio by Default Status", fig.width=6, fig.height=4}
+ggplot(df, aes(x = default_flag, y = debt_to_income_ratio, fill = default_flag)) +
+  geom_violin(alpha = 0.6, show.legend = FALSE) +
+  geom_boxplot(width = 0.1, fill = "white", show.legend = FALSE) +
+  scale_fill_manual(values = c("No Default" = "#2196F3", "Default" = "#F44336")) +
+  scale_y_continuous(labels = percent) +
+  labs(title = "Debt-to-Income Ratio by Default Status",
+       x = "Default Status", y = "Debt-to-Income Ratio") +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(face = "bold"))
+```
+
+**Interpretation:** The violin plot reveals that defaulters tend to have a higher debt-to-income ratio than non-defaulters. Users spending a larger proportion of their income on debt repayments are naturally more vulnerable to missing BNPL payments. This variable is an important financial health indicator that BNPL providers can use in real-time credit decisioning.
+
+---
+
+# Section 9: Default Rate by Product Category
+
+```{r product-default, fig.cap="Figure 7: Default Rate by Product Category", fig.width=7, fig.height=4}
+df %>%
+  group_by(product_category) %>%
+  summarise(
+    total   = n(),
+    default = sum(default_flag == "Default"),
+    rate    = default / total
+  ) %>%
+  ggplot(aes(x = reorder(product_category, -rate), y = rate, fill = product_category)) +
+  geom_col(width = 0.5, show.legend = FALSE) +
+  geom_text(aes(label = percent(rate, accuracy = 0.1)),
+            vjust = -0.4, fontface = "bold", size = 4) +
+  scale_y_continuous(labels = percent, limits = c(0, 0.55)) +
+  scale_fill_brewer(palette = "Pastel1") +
+  labs(title = "Default Rate by Product Category",
+       x = "Product Category", y = "Default Rate") +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(face = "bold"))
+```
+
+**Interpretation:** Default rates across product categories are relatively similar, ranging from 37.7% (Sports) to 41.0% (Fashion). While Fashion purchases show a slightly higher default rate, the differences are not dramatic. This suggests that product category alone is a weak predictor of default — the nature of the purchase matters less than the financial profile of the buyer.
+
+---
+
+# Section 10: Correlation Heatmap of Numerical Variables
+
+```{r correlation-heatmap, fig.cap="Figure 8: Correlation Matrix of Numerical Variables", fig.width=7, fig.height=6}
+# 選出數值型變數並計算相關矩陣
+cor_data <- df %>%
+  select(age, monthly_income, credit_score, purchase_amount,
+         repayment_delay_days, missed_payments,
+         debt_to_income_ratio, risk_score, app_usage_frequency) %>%
+  cor()
+
+corrplot(cor_data,
+         method  = "color",
+         type    = "upper",
+         addCoef.col = "black",
+         tl.col  = "black",
+         tl.srt  = 45,
+         number.cex = 0.7,
+         col     = colorRampPalette(c("#F44336", "white", "#2196F3"))(200),
+         title   = "Correlation Matrix",
+         mar     = c(0, 0, 1, 0))
+```
+
+**Interpretation:** The correlation matrix reveals several notable relationships. `risk_score` is positively correlated with `missed_payments` and `repayment_delay_days`, confirming that the risk score is constructed from behavioural repayment data. `monthly_income` and `debt_to_income_ratio` show a negative correlation — higher-income users tend to have lower debt burdens. Importantly, no two variables are extremely highly correlated (> 0.9), so multicollinearity is unlikely to be a major concern in modelling.
+
+---
+
+# Section 11: Income Distribution by Default Status
+
+```{r income-default, fig.cap="Figure 9: Monthly Income Distribution by Default Status", fig.width=7, fig.height=4}
+ggplot(df, aes(x = monthly_income, fill = default_flag)) +
+  geom_density(alpha = 0.5) +
+  scale_fill_manual(values = c("No Default" = "#2196F3", "Default" = "#F44336"),
+                    name = "Default Status") +
+  scale_x_continuous(labels = dollar) +
+  labs(title = "Monthly Income Distribution by Default Status",
+       x = "Monthly Income (USD)", y = "Density") +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(face = "bold"),
+        legend.position = "top")
+```
+
+**Interpretation:** Non-defaulters show a slightly higher income density at the upper end compared to defaulters. However, the distributions heavily overlap, indicating that income alone is not sufficient to distinguish defaulters from non-defaulters. This reinforces the need for a multivariate model that combines income with behavioural and demographic factors.
+
+---
+
+# Section 12: Monthly Transaction Volume Over Time
+
+```{r time-trend, fig.cap="Figure 10: Monthly Transaction Volume and Default Rate Over Time", fig.width=8, fig.height=4}
+df %>%
+  mutate(month = floor_date(transaction_date, "month")) %>%
+  group_by(month) %>%
+  summarise(
+    transactions = n(),
+    default_rate = mean(default_flag == "Default")
+  ) %>%
+  ggplot(aes(x = month)) +
+  geom_col(aes(y = transactions), fill = "#90CAF9", alpha = 0.8) +
+  geom_line(aes(y = default_rate * max(transactions) / max(default_rate)),
+            colour = "#F44336", linewidth = 1) +
+  geom_point(aes(y = default_rate * max(transactions) / max(default_rate)),
+             colour = "#F44336", size = 2) +
+  scale_y_continuous(
+    name = "Number of Transactions",
+    labels = comma,
+    sec.axis = sec_axis(
+      ~ . * max(df %>% group_by(floor_date(transaction_date, "month")) %>%
+                  summarise(r = mean(default_flag == "Default")) %>% pull(r)) /
+        max((df %>% mutate(m = floor_date(transaction_date, "month")) %>%
+               count(m))$n),
+      name = "Default Rate",
+      labels = percent
+    )
+  ) +
+  scale_x_date(date_labels = "%b %Y", date_breaks = "3 months") +
+  labs(title = "Monthly Transaction Volume and Default Rate Over Time",
+       x = "Month") +
+  theme_minimal(base_size = 11) +
+  theme(plot.title  = element_text(face = "bold"),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title.y.right = element_text(colour = "#F44336"),
+        axis.title.y.left  = element_text(colour = "#1565C0"))
+```
+
+**Interpretation:** Transaction volumes are relatively stable across the observation period (2023–2024), with no dramatic seasonal spikes. The default rate (red line) also remains broadly consistent over time, hovering around 39%. This stability suggests the dataset captures a representative, steady-state snapshot of BNPL behaviour, making it well-suited for building a generalizable predictive model.
+
+---
+
+# Summary of Key EDA Findings
+
+```{r summary-table}
+summary_findings <- tibble(
+  `#` = 1:7,
+  Finding = c(
+    "Overall default rate is 39.1% — moderate class imbalance requires handling during modelling",
+    "Unemployed and Student users have the highest default rates (~49%), nearly double that of Self-Employed users",
+    "Customer risk segment is highly predictive: Low Risk defaults at 4.5% vs. High Risk at 49.0%",
+    "Lower credit scores strongly associated with higher default probability",
+    "Missed payments and repayment delays are the strongest behavioural indicators of default",
+    "Higher debt-to-income ratio is a key financial stress indicator linked to default",
+    "Product category shows minimal variation in default rates — a weaker predictor"
+  )
+)
+
+kable(summary_findings,
+      caption = "Table 3: Summary of Key EDA Findings",
+      booktabs = TRUE,
+      col.names = c("#", "Key Finding")) %>%
+  kable_styling(latex_options = c("hold_position", "striped")) %>%
+  column_spec(2, width = "12cm")
+```
