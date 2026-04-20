@@ -56,7 +56,7 @@
 
 SMOTE 後訓練集兩類別數量相等。
 
-### 第五步：類別變數編碼（One-Hot Encoding）
+### 第五步：類別變數編碼（Dummy Encoding）
 
 使用 `recipes` 套件的 `step_dummy()` 對所有類別型預測變數進行 Dummy Encoding，訓練集與測試集使用相同的 recipe，確保欄位結構一致。
 
@@ -90,7 +90,7 @@ test_df  <- readRDS("test_df.rds")
 |------|------|
 | `tidyverse` | 資料處理 |
 | `rsample` | 訓練集／測試集分割 |
-| `recipes` | 預處理 Pipeline（One-Hot Encoding） |
+| `recipes` | 預處理 Pipeline（Dummy Encoding） |
 | `themis` | SMOTE 過採樣 |
 
 ---
