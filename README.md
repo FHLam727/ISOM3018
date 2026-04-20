@@ -58,7 +58,7 @@ SMOTE 後訓練集兩類別數量相等。
 
 ### 第五步：類別變數編碼（One-Hot Encoding）
 
-使用 `recipes` 套件的 `step_dummy()` 對所有類別型預測變數進行 One-Hot Encoding，訓練集與測試集使用相同的 recipe，確保欄位結構一致。
+使用 `recipes` 套件的 `step_dummy()` 對所有類別型預測變數進行 Dummy Encoding，訓練集與測試集使用相同的 recipe，確保欄位結構一致。
 
 編碼後共有 **26 個變數**。
 
@@ -68,8 +68,8 @@ SMOTE 後訓練集兩類別數量相等。
 
 | 檔案 | 內容 | 大小 |
 |------|------|------|
-| `train_df.rds` | 經 SMOTE 及 One-Hot Encoding 處理的訓練集 | 10,088 筆，26 個變數 |
-| `test_df.rds` | 僅經 One-Hot Encoding 處理的測試集 | 2,069 筆，26 個變數 |
+| `train_df.rds` | 經 SMOTE 及 Dummy Encoding 處理的訓練集 | 10,088 筆，26 個變數 |
+| `test_df.rds` | 僅經 Dummy Encoding 處理的測試集 | 2,069 筆，26 個變數 |
 
 ---
 
