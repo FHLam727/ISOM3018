@@ -104,7 +104,7 @@ kable(
   kable_styling(latex_options = c("hold_position"), font_size = 10)
 ```
 
-**Interpretation:** The model achieves a ROC AUC of 0.74, indicating moderate discriminative ability. At the default 0.50 threshold, it correctly identifies around 65% of actual defaulters (sensitivity), while maintaining a similar rate for non-defaulters (specificity). For a BNPL provider, higher sensitivity is generally preferred — missing a defaulter is more costly than a false alarm.
+**Interpretation:** The model achieves a ROC AUC of 0.745, indicating moderate discriminative ability. At the default 0.50 threshold, it correctly identifies 65.8% of actual defaulters (sensitivity), while maintaining a similar rate for non-defaulters (specificity = 0.664). For a BNPL provider, higher sensitivity is generally preferred — missing a defaulter is more costly than a false alarm.
 
 ```{r logistic-roc, fig.cap = "ROC Curve — Logistic Regression (Test Set)."}
 ggplot(roc_lr, aes(x = 1 - specificity, y = sensitivity)) +
@@ -121,11 +121,11 @@ ggplot(roc_lr, aes(x = 1 - specificity, y = sensitivity)) +
 cm_tbl_lr <- cm_lr$table
 
 cm_display_lr <- tibble(
-  ` ` = c("Actual: Default", "Actual: No Default"),
-  `Predicted: Default`    = c(cm_tbl_lr["Default",    "Default"],
-                               cm_tbl_lr["No_Default", "Default"]),
-  `Predicted: No Default` = c(cm_tbl_lr["Default",    "No_Default"],
-                               cm_tbl_lr["No_Default", "No_Default"])
+  ` ` = c("Predicted: Default", "Predicted: No Default"),
+  `Actual: Default`    = c(cm_tbl_lr["Default",    "Default"],
+                            cm_tbl_lr["No_Default", "Default"]),
+  `Actual: No Default` = c(cm_tbl_lr["Default",    "No_Default"],
+                            cm_tbl_lr["No_Default", "No_Default"])
 )
 
 kable(
@@ -137,7 +137,7 @@ kable(
   column_spec(1, bold = TRUE)
 ```
 
-**Interpretation:** Of the 808 customers who actually defaulted, 523 were correctly flagged (true positives), while 285 were missed (false negatives). Of the 1,261 non-defaulters, 844 were correctly cleared and 417 were incorrectly flagged. Reducing the false negative count — undetected defaulters — is the primary operational priority for credit risk management.
+**Interpretation:** Of the 808 customers who actually defaulted, 532 were correctly flagged (true positives), while 276 were missed (false negatives). Of the 1,261 non-defaulters, 837 were correctly cleared and 424 were incorrectly flagged. Reducing the false negative count — undetected defaulters — is the primary operational priority for credit risk management.
 
 \newpage
 
@@ -247,7 +247,7 @@ kable(
   kable_styling(latex_options = c("hold_position"), font_size = 10)
 ```
 
-**Interpretation:** k-NN achieves a ROC AUC of 0.72, slightly below logistic regression. Its sensitivity (true positive rate for defaulters) is 0.62, meaning it detects fewer defaulters compared to logistic regression. However, it achieves a marginally higher specificity, correctly clearing more non-defaulters.
+**Interpretation:** k-NN achieves a ROC AUC of 0.714, slightly below logistic regression. Its sensitivity (true positive rate for defaulters) is 0.616, meaning it detects fewer defaulters compared to logistic regression. However, it achieves a higher specificity, correctly clearing more non-defaulters.
 
 ```{r knn-roc, fig.cap = "ROC Curve — k-NN (Test Set)."}
 ggplot(roc_knn, aes(x = 1 - specificity, y = sensitivity)) +
@@ -262,11 +262,11 @@ ggplot(roc_knn, aes(x = 1 - specificity, y = sensitivity)) +
 cm_tbl_knn <- cm_knn$table
 
 cm_display_knn <- tibble(
-  ` ` = c("Actual: Default", "Actual: No Default"),
-  `Predicted: Default`    = c(cm_tbl_knn["Default",    "Default"],
-                               cm_tbl_knn["No_Default", "Default"]),
-  `Predicted: No Default` = c(cm_tbl_knn["Default",    "No_Default"],
-                               cm_tbl_knn["No_Default", "No_Default"])
+  ` ` = c("Predicted: Default", "Predicted: No Default"),
+  `Actual: Default`    = c(cm_tbl_knn["Default",    "Default"],
+                            cm_tbl_knn["No_Default", "Default"]),
+  `Actual: No Default` = c(cm_tbl_knn["Default",    "No_Default"],
+                            cm_tbl_knn["No_Default", "No_Default"])
 )
 
 kable(
@@ -278,7 +278,7 @@ kable(
   column_spec(1, bold = TRUE)
 ```
 
-**Interpretation:** k-NN correctly identifies 502 defaulters (true positives) but misses 414 (false negatives). Compared to logistic regression, it catches fewer actual defaulters — a disadvantage in credit risk contexts where undetected defaults carry higher financial cost.
+**Interpretation:** k-NN correctly identifies 498 defaulters (true positives) but misses 310 (false negatives). Compared to logistic regression, it catches fewer actual defaulters — a disadvantage in credit risk contexts where undetected defaults carry higher financial cost.
 
 \newpage
 
@@ -317,7 +317,7 @@ bind_rows(
   theme(legend.position = "top")
 ```
 
-**Interpretation:** Logistic regression outperforms k-NN on ROC AUC (0.74 vs. 0.72), accuracy, and sensitivity. Both models achieve similar specificity. For BNPL default detection, logistic regression is the stronger performer of the two.
+**Interpretation:** Logistic regression outperforms k-NN on ROC AUC (0.745 vs. 0.714), sensitivity, and accuracy. k-NN achieves a slightly higher specificity (0.687 vs. 0.664). For default detection where catching defaulters is the priority, logistic regression is the stronger performer of the two.
 
 \newpage
 

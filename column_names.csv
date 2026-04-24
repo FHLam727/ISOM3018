@@ -1,14 +1,11 @@
 column
 age
-monthly_income
 credit_score
 purchase_amount
-bnpl_installments
 repayment_delay_days
 missed_payments
 app_usage_frequency
 debt_to_income_ratio
-risk_score
 employment_type_Self.Employed
 employment_type_Student
 employment_type_Unemployed
@@ -16,6 +13,9 @@ product_category_Electronics
 product_category_Fashion
 product_category_Home
 product_category_Sports
+bnpl_installments_X6
+bnpl_installments_X9
+bnpl_installments_X12
 location_Canada
 location_Germany
 location_India

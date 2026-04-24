@@ -25,11 +25,11 @@ cat("原始數據維度:", nrow(df_raw), "rows x", ncol(df_raw), "cols\n")
 # 移除原因：
 #   user_id          → 只係 ID，冇預測力
 #   transaction_date → 唔做時間序列分析，冇用
-#   customer_segment → ⚠️ DATA LEAKAGE！呢個係根據 default 行為分類出嚟嘅
+#   customer_segment, monthly_income, risk_score → ⚠️ DATA LEAKAGE！呢個係根據 default 行為分類出嚟嘅
 #                       如果留住，model 會「偷睇答案」，結果虛假地準確
 
 df_clean <- df_raw %>%
-  select(-user_id, -transaction_date, -customer_segment)
+  select(-user_id, -transaction_date, -customer_segment, -risk_score, -monthly_income)
 
 cat("清理後維度:", nrow(df_clean), "rows x", ncol(df_clean), "cols\n")
 
@@ -49,7 +49,7 @@ df_clean <- df_clean %>%
     
     # bnpl_installments 係 1-4 嘅整數，當做 numeric 處理
     # 如果你想當做 ordinal factor 都可以，視乎你嘅 model
-    bnpl_installments = as.numeric(bnpl_installments)
+    bnpl_installments = factor(bnpl_installments, levels = c(3, 6, 9, 12))
   )
 
 # 確認 target variable 分佈
