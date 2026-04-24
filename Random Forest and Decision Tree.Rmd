@@ -1,0 +1,219 @@
+---
+title: "Random Forest and Decision Tree"
+output: pdf_document
+date: "2026-04-24"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE
+)
+```
+
+
+```{r}
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+library(caret)
+library(pROC)
+
+
+```
+
+# 1. Model Development
+
+Two models were developed to predict customer default risk: Decision Tree and Random Forest. These models were selected to compare interpretability and predictive performance.
+```{r}
+# Load data
+train_df <- readRDS("train_df.rds")
+test_df  <- readRDS("test_df.rds")
+
+
+```
+# 2. Decision Tree Model
+
+```{r}
+# Model Training
+set.seed(42)
+
+dt_model <- rpart(
+  default_flag ~ ., 
+  data = train_df,
+  method = "class"
+)
+```
+
+
+
+## 2.1 Tree Visualization
+
+```{r}
+rpart.plot(dt_model)
+
+
+```
+
+```{r}
+# Predictions
+dt_pred_class <- predict(dt_model, test_df, type = "class")
+dt_pred_prob  <- predict(dt_model, test_df)[,2]
+
+
+# Evaluation
+dt_conf <- confusionMatrix(dt_pred_class, test_df$default_flag)
+dt_roc  <- roc(test_df$default_flag, dt_pred_prob)
+dt_auc  <- auc(dt_roc)
+```
+
+
+## 2.2 Performance
+The Decision Tree model achieved an AUC of r round(dt_auc, 3).
+```{r}
+knitr::kable(dt_conf$table, caption = "Confusion Matrix - Decision Tree")
+plot(dt_roc, col = "red", main = "ROC Curve - Decision Tree")
+```
+
+
+# 3. Random Forest Model
+
+
+```{r}
+# 3.1 Model Training
+set.seed(42)
+rf_model <- randomForest(
+  default_flag ~ ., 
+  data = train_df,
+  ntree = 500,
+  mtry = sqrt(ncol(train_df) - 1),
+  importance = TRUE
+)
+```
+
+
+
+```{r}
+# Prediction & Evaluation
+rf_pred_class <- predict(rf_model, test_df)
+rf_pred_prob  <- predict(rf_model, test_df, type = "prob")[,2]
+
+rf_conf <- confusionMatrix(rf_pred_class, test_df$default_flag)
+rf_roc  <- roc(test_df$default_flag, rf_pred_prob)
+rf_auc  <- auc(rf_roc)
+```
+
+## 3.1 Performance
+
+The Random Forest model achieved an AUC of r round(rf_auc, 3).
+```{r}
+knitr::kable(rf_conf$table, caption = "Confusion Matrix - Random Forest")
+plot(rf_roc, col = "blue", main = "ROC Curve - Random Forest")
+```
+
+
+## 3.2 Feature Importance
+The Random Forest model was trained using 500 trees, with 5 variables randomly selected at each split.
+```{r, fig.align='center', fig.width=6, fig.height=4}
+# ===== Feature Importance =====
+importance_df <- as.data.frame(importance(rf_model))
+
+# Convert rownames to column
+importance_df$Feature <- rownames(importance_df)
+
+# Keep only what we need
+importance_clean <- importance_df[, c("Feature", "MeanDecreaseGini")]
+
+# Sort descending
+importance_clean <- importance_clean[order(-importance_clean$MeanDecreaseGini), ]
+
+# Top 10
+top_features <- head(importance_clean, 10)
+
+# Remove rownames to avoid duplication
+rownames(top_features) <- NULL
+
+# ===== Plot =====
+library(ggplot2)
+
+ggplot(top_features, aes(x = reorder(Feature, MeanDecreaseGini), 
+                         y = MeanDecreaseGini)) +
+  geom_col() +
+  coord_flip() +
+  labs(
+    title = "Top 10 Important Features",
+    x = "Feature",
+    y = "Importance (Mean Decrease Gini)"
+  ) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# ===== Table =====
+knitr::kable(
+  top_features,
+  digits = 2,
+  caption = "Top 10 Important Features (Random Forest)",
+  row.names = FALSE
+)
+
+
+
+```
+## 3.3 Performance Summary
+```{r}
+# ===== Performance Table =====
+performance <- data.frame(
+  Metric = c("Accuracy", "Recall", "AUC"),
+  Value = c(
+    rf_conf$overall['Accuracy'],
+    rf_conf$byClass['Recall'],
+    rf_auc
+  )
+)
+
+# Round values for readability
+performance$Value <- round(performance$Value, 3)
+
+knitr::kable(
+  performance,
+  caption = "Random Forest Performance",
+  row.names = FALSE
+)
+```
+
+
+# 4. Model Comparison
+```{r}
+# Extract key metrics
+acc_dt <- dt_conf$overall['Accuracy']
+recall_dt <- dt_conf$byClass['Recall']
+
+acc_rf <- rf_conf$overall['Accuracy']
+recall_rf <- rf_conf$byClass['Recall']
+
+model_results <- data.frame(
+  Model = c("Decision Tree", "Random Forest"),
+  Accuracy = c(dt_conf$overall['Accuracy'], rf_conf$overall['Accuracy']),
+  Recall = c(dt_conf$byClass['Recall'], rf_conf$byClass['Recall']),
+  AUC = c(dt_auc, rf_auc)
+)
+
+knitr::kable(model_results, digits = 3, caption = "Model Comparison")
+
+```
+
+
+# 5. Interpretation
+
+The Random Forest model outperforms the Decision Tree model in terms of predictive accuracy and AUC, indicating a stronger ability to correctly classify default risk.
+
+While the Decision Tree provides clear and interpretable decision rules, its performance is limited due to overfitting and sensitivity to data variations. In contrast, Random Forest improves stability and generalization by aggregating multiple trees.
+
+From a business perspective, Random Forest is more suitable for deployment in credit risk prediction, as it provides more reliable identification of high-risk customers. However, Decision Trees remain useful for explaining decision logic to stakeholders.
+
+# 6. Business Implications
+
+The results suggest that customer default risk is influenced by complex interactions between multiple factors. The Random Forest model can be used to support risk-based decision-making, such as adjusting credit limits or implementing targeted risk controls.
+
+By leveraging these insights, businesses can reduce financial losses while maintaining customer growth through more informed lending strategies.
