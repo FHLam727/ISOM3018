@@ -3,11 +3,9 @@ title: "BNPL Credit Risk — Modeling (Logistic Regression and k-NN)"
 subtitle: "ISOM3018 Course Project"
 output:
   pdf_document:
-    toc: true
-    toc_depth: 2
+    toc: false
   html_document:
-    toc: true
-    toc_depth: 2
+    toc: false
 ---
 
 ```{r setup, include=FALSE}
@@ -26,18 +24,7 @@ library(tidymodels)
 library(tidyverse)
 library(knitr)
 library(kableExtra)
-library(scales)
 ```
-
-# Section 1: Modeling Overview
-
-Two classification models — logistic regression and k-nearest neighbors (k-NN) — are built to predict whether a BNPL customer will default on their repayment (`default_flag`: Default vs. No Default).
-
-Both models are trained on the same preprocessed training set (SMOTE applied to address class imbalance) and evaluated on a held-out test set. Numeric predictors are standardized before fitting. The positive class for all discrimination metrics is **Default**.
-
-\newpage
-
-# Section 2: Logistic Regression
 
 ```{r load-data}
 train_df <- readRDS("train_df.rds")
@@ -55,7 +42,13 @@ if (!identical(nm_tr, nm_te)) {
 event_lvl <- "second"
 ```
 
-```{r logistic-spec}
+\newpage
+
+# Model 1: Logistic Regression
+
+The logistic regression model estimates the log-odds of default using the linear combination of input features. It can provide an interpretation of how each variable influences risk. To allow comparability across different independent variables, all numeric variables are standardized with a mean of 0 and a standard deviation of 1.
+
+```{r logistic-fit}
 rec_logistic <- recipe(default_flag ~ ., data = train_df) %>%
   step_normalize(all_numeric_predictors())
 
@@ -69,79 +62,50 @@ wf_logistic <- workflow() %>%
 
 set.seed(42)
 fit_logistic <- fit(wf_logistic, data = train_df)
+```
 
-test_aug_lr <- augment(fit_logistic, test_df)
+```{r logistic-coef-table}
+coef_tbl <- tidy(fit_logistic) %>%
+  filter(term != "(Intercept)") %>%
+  arrange(desc(abs(estimate))) %>%
+  mutate(
+    estimate  = round(estimate, 4),
+    std.error = round(std.error, 4),
+    p.value   = round(p.value, 4)
+  ) %>%
+  rename(
+    Predictor   = term,
+    Coefficient = estimate,
+    `Std. Error` = std.error,
+    `p-value`   = p.value
+  ) %>%
+  select(Predictor, Coefficient, `Std. Error`, `p-value`)
 
+kable(
+  coef_tbl,
+  booktabs = TRUE,
+  caption  = "Logistic Regression Coefficients"
+) %>%
+  kable_styling(latex_options = c("hold_position", "scale_down"), font_size = 9)
+```
+
+With 95% confidence level, `repayment_delay_days`, `purchase_amount`, and `missed_payments` have positive coefficients. These variables relate to higher default risk. While `credit_score`, `debt_to_income_ratio`, `employment_type_Unemployed`, and `employment_type_Student` have negative coefficients, indicating lower default risk. Among them, `credit_score` and `repayment_delay_days` have the largest impact on default risk.
+
+```{r logistic-predictions}
+test_aug_lr  <- augment(fit_logistic, test_df)
 pred_cols_lr <- names(test_aug_lr)[startsWith(names(test_aug_lr), ".pred_")]
-pred_export_lr <- test_aug_lr %>%
+
+test_aug_lr %>%
   mutate(row_id = row_number(), .before = 1) %>%
-  select(row_id, default_flag, all_of(pred_cols_lr))
-write_csv(pred_export_lr, "predictions_logistic_test.csv")
-
-m_lr <- bind_rows(
-  roc_auc(test_aug_lr, truth = default_flag, .pred_Default, event_level = event_lvl),
-  accuracy(test_aug_lr, truth = default_flag, .pred_class),
-  yardstick::sens(test_aug_lr, truth = default_flag, estimate = .pred_class, event_level = event_lvl),
-  yardstick::spec(test_aug_lr, truth = default_flag, estimate = .pred_class, event_level = event_lvl)
-) %>%
-  mutate(model = "Logistic Regression", .before = 1)
-
-cm_lr  <- conf_mat(test_aug_lr, truth = default_flag, estimate = .pred_class)
-roc_lr <- roc_curve(test_aug_lr, default_flag, .pred_Default, event_level = event_lvl)
+  select(row_id, default_flag, all_of(pred_cols_lr)) %>%
+  write_csv("predictions_logistic_test.csv")
 ```
-
-Logistic regression models the probability of default as a linear function of customer characteristics. It is selected as a baseline for its interpretability — the contribution of each predictor can be directly examined. All numeric predictors are standardized; categorical predictors are dummy-encoded.
-
-```{r logistic-metrics-table}
-kable(
-  m_lr %>%
-    dplyr::rename(Metric = `.metric`, Value = `.estimate`) %>%
-    dplyr::select(Metric, Value),
-  digits = 4,
-  booktabs = TRUE,
-  caption = "Test Set Performance — Logistic Regression"
-) %>%
-  kable_styling(latex_options = c("hold_position"), font_size = 10)
-```
-
-**Interpretation:** The model achieves a ROC AUC of 0.745, indicating moderate discriminative ability. At the default 0.50 threshold, it correctly identifies 65.8% of actual defaulters (sensitivity), while maintaining a similar rate for non-defaulters (specificity = 0.664). For a BNPL provider, higher sensitivity is generally preferred — missing a defaulter is more costly than a false alarm.
-
-```{r logistic-roc, fig.cap = "ROC Curve — Logistic Regression (Test Set)."}
-ggplot(roc_lr, aes(x = 1 - specificity, y = sensitivity)) +
-  geom_path(linewidth = 0.8, color = "#1565C0") +
-  geom_abline(linetype = "dashed", color = "grey50") +
-  coord_equal() +
-  labs(x = "False Positive Rate", y = "True Positive Rate (Sensitivity)") +
-  theme_minimal(base_size = 11)
-```
-
-**Interpretation:** The ROC curve lies clearly above the diagonal (random baseline), confirming the model has meaningful predictive power for identifying BNPL default risk.
-
-```{r logistic-confusion}
-cm_tbl_lr <- cm_lr$table
-
-cm_display_lr <- tibble(
-  ` ` = c("Predicted: Default", "Predicted: No Default"),
-  `Actual: Default`    = c(cm_tbl_lr["Default",    "Default"],
-                            cm_tbl_lr["No_Default", "Default"]),
-  `Actual: No Default` = c(cm_tbl_lr["Default",    "No_Default"],
-                            cm_tbl_lr["No_Default", "No_Default"])
-)
-
-kable(
-  cm_display_lr,
-  booktabs = TRUE,
-  caption  = "Confusion Matrix — Logistic Regression (Test Set)"
-) %>%
-  kable_styling(latex_options = c("hold_position"), font_size = 10) %>%
-  column_spec(1, bold = TRUE)
-```
-
-**Interpretation:** Of the 808 customers who actually defaulted, 532 were correctly flagged (true positives), while 276 were missed (false negatives). Of the 1,261 non-defaulters, 837 were correctly cleared and 424 were incorrectly flagged. Reducing the false negative count — undetected defaulters — is the primary operational priority for credit risk management.
 
 \newpage
 
-# Section 3: k-Nearest Neighbors (k-NN)
+# Model 2: k-Nearest Neighbors (k-NN)
+
+k-NN classifies each customer based on the majority default outcome among their *k* nearest neighbors. All numeric predictors are standardized before computing distances. The optimal *k* is selected by 5-fold cross-validation on the training data to maximize the ROC AUC. Here, the *k* values from 3 to 101 are evaluated to reduce the risk of ties.
 
 ```{r knn-tune}
 rec_knn <- recipe(default_flag ~ ., data = train_df) %>%
@@ -171,40 +135,11 @@ tune_res <- tune_grid(
 
 best_k <- tune_res %>% select_best(metric = "roc_auc")
 
-wf_knn_final <- finalize_workflow(wf_knn, best_k)
-set.seed(42)
-fit_knn <- fit(wf_knn_final, data = train_df)
-
-test_aug_knn <- augment(fit_knn, test_df)
-
-pred_cols_knn <- names(test_aug_knn)[startsWith(names(test_aug_knn), ".pred_")]
-pred_export_knn <- test_aug_knn %>%
-  mutate(row_id = row_number(), .before = 1) %>%
-  select(row_id, default_flag, all_of(pred_cols_knn))
-write_csv(pred_export_knn, "predictions_knn_test.csv")
-
-m_knn <- bind_rows(
-  roc_auc(test_aug_knn, truth = default_flag, .pred_Default, event_level = event_lvl),
-  accuracy(test_aug_knn, truth = default_flag, .pred_class),
-  yardstick::sens(test_aug_knn, truth = default_flag, estimate = .pred_class, event_level = event_lvl),
-  yardstick::spec(test_aug_knn, truth = default_flag, estimate = .pred_class, event_level = event_lvl)
-) %>%
-  mutate(model = "k-NN", .before = 1)
-
-cm_knn  <- conf_mat(test_aug_knn, truth = default_flag, estimate = .pred_class)
-roc_knn <- roc_curve(test_aug_knn, default_flag, .pred_Default, event_level = event_lvl)
-
 cv_raw <- tune_res %>%
   collect_metrics() %>%
   dplyr::filter(.metric == "roc_auc")
 
-estimate_col <- if (".estimate" %in% names(cv_raw)) {
-  ".estimate"
-} else if ("mean" %in% names(cv_raw)) {
-  "mean"
-} else {
-  stop("collect_metrics() missing a usable value column. Available: ", paste(names(cv_raw), collapse = ", "))
-}
+estimate_col <- if ("mean" %in% names(cv_raw)) "mean" else ".estimate"
 
 cv_k_auc <- cv_raw %>%
   dplyr::mutate(estimate_metric = .data[[estimate_col]]) %>%
@@ -212,12 +147,12 @@ cv_k_auc <- cv_raw %>%
   dplyr::summarise(mean_roc_auc = mean(estimate_metric, na.rm = TRUE), .groups = "drop")
 ```
 
-k-NN classifies each customer based on the majority default outcome among their *k* nearest neighbors in standardized feature space. The optimal *k* is selected by 5-fold cross-validation on the training data, choosing the value that maximizes ROC AUC.
-
 ```{r knn-bestk-table}
 kable(
   tibble(`Selected k` = best_k$neighbors,
-         `Selection Criterion` = "Max CV ROC AUC"),
+         `Selection Criterion` = "Max CV ROC AUC",
+         `CV Folds` = 5,
+         `k Range Searched` = "3 to 101 (odd values only)"),
   booktabs = TRUE,
   caption  = "Optimal k Selected by Cross-validation"
 ) %>%
@@ -227,104 +162,32 @@ kable(
 ```{r knn-cv-plot, fig.cap = "Cross-validated ROC AUC by k (Training Data Only)."}
 ggplot(cv_k_auc, aes(x = neighbors, y = mean_roc_auc)) +
   geom_line(linewidth = 0.7, color = "#2E7D32") +
-  geom_point(size = 2, color = "#2E7D32") +
+  geom_point(size = 1.5, color = "#2E7D32") +
   geom_vline(xintercept = best_k$neighbors, linetype = "dashed", color = "grey35") +
+  annotate("text",
+           x     = best_k$neighbors + 2,
+           y     = min(cv_k_auc$mean_roc_auc),
+           label = paste0("k = ", best_k$neighbors),
+           hjust = 0, size = 3.2, color = "grey35") +
   labs(x = "k (Number of Neighbors)", y = "Mean CV ROC AUC") +
   theme_minimal(base_size = 11)
 ```
 
-**Interpretation:** ROC AUC increases steadily as *k* grows, peaking at k = `r best_k$neighbors`. A larger *k* produces smoother, more stable predictions by averaging over more neighbors, which helps on this dataset.
+We can observe that the ROC AUC peaks at k = `r best_k$neighbors`, so *k* is set to be `r best_k$neighbors`.
 
-```{r knn-metrics-table}
-kable(
-  m_knn %>%
-    dplyr::rename(Metric = `.metric`, Value = `.estimate`) %>%
-    dplyr::select(Metric, Value),
-  digits = 4,
-  booktabs = TRUE,
-  caption  = "Test Set Performance — k-NN"
-) %>%
-  kable_styling(latex_options = c("hold_position"), font_size = 10)
+```{r knn-final-fit}
+wf_knn_final <- finalize_workflow(wf_knn, best_k)
+set.seed(42)
+fit_knn <- fit(wf_knn_final, data = train_df)
 ```
 
-**Interpretation:** k-NN achieves a ROC AUC of 0.714, slightly below logistic regression. Its sensitivity (true positive rate for defaulters) is 0.616, meaning it detects fewer defaulters compared to logistic regression. However, it achieves a higher specificity, correctly clearing more non-defaulters.
+```{r knn-predictions}
+test_aug_knn  <- augment(fit_knn, test_df)
+pred_cols_knn <- names(test_aug_knn)[startsWith(names(test_aug_knn), ".pred_")]
 
-```{r knn-roc, fig.cap = "ROC Curve — k-NN (Test Set)."}
-ggplot(roc_knn, aes(x = 1 - specificity, y = sensitivity)) +
-  geom_path(linewidth = 0.8, color = "#2E7D32") +
-  geom_abline(linetype = "dashed", color = "grey50") +
-  coord_equal() +
-  labs(x = "False Positive Rate", y = "True Positive Rate (Sensitivity)") +
-  theme_minimal(base_size = 11)
+test_aug_knn %>%
+  mutate(row_id = row_number(), .before = 1) %>%
+  select(row_id, default_flag, all_of(pred_cols_knn)) %>%
+  write_csv("predictions_knn_test.csv")
 ```
-
-```{r knn-confusion}
-cm_tbl_knn <- cm_knn$table
-
-cm_display_knn <- tibble(
-  ` ` = c("Predicted: Default", "Predicted: No Default"),
-  `Actual: Default`    = c(cm_tbl_knn["Default",    "Default"],
-                            cm_tbl_knn["No_Default", "Default"]),
-  `Actual: No Default` = c(cm_tbl_knn["Default",    "No_Default"],
-                            cm_tbl_knn["No_Default", "No_Default"])
-)
-
-kable(
-  cm_display_knn,
-  booktabs = TRUE,
-  caption  = "Confusion Matrix — k-NN (Test Set)"
-) %>%
-  kable_styling(latex_options = c("hold_position"), font_size = 10) %>%
-  column_spec(1, bold = TRUE)
-```
-
-**Interpretation:** k-NN correctly identifies 498 defaulters (true positives) but misses 310 (false negatives). Compared to logistic regression, it catches fewer actual defaulters — a disadvantage in credit risk contexts where undetected defaults carry higher financial cost.
-
-\newpage
-
-# Section 4: Model Comparison
-
-```{r compare-table}
-compare_tbl <- bind_rows(m_lr, m_knn) %>%
-  dplyr::rename(metric_name = `.metric`, metric_value = `.estimate`) %>%
-  dplyr::select(model, metric_name, metric_value) %>%
-  tidyr::pivot_wider(names_from = metric_name, values_from = metric_value) %>%
-  dplyr::rename(
-    Model       = model,
-    `ROC AUC`   = roc_auc,
-    Accuracy    = accuracy,
-    Sensitivity = sens,
-    Specificity = spec
-  )
-
-kable(compare_tbl, digits = 4, booktabs = TRUE,
-      caption = "Test Set Performance — Logistic Regression vs. k-NN") %>%
-  kable_styling(latex_options = c("hold_position", "scale_down"), font_size = 10)
-```
-
-```{r compare-roc, fig.cap = "ROC Curves — Logistic Regression vs. k-NN (Test Set)."}
-bind_rows(
-  roc_lr  %>% mutate(model = "Logistic Regression"),
-  roc_knn %>% mutate(model = "k-NN")
-) %>%
-  ggplot(aes(x = 1 - specificity, y = sensitivity, color = model)) +
-  geom_path(linewidth = 0.8) +
-  geom_abline(linetype = "dashed", color = "grey50") +
-  coord_equal() +
-  scale_color_manual(values = c("Logistic Regression" = "#1565C0", "k-NN" = "#2E7D32")) +
-  labs(x = "False Positive Rate", y = "True Positive Rate", color = NULL) +
-  theme_minimal(base_size = 11) +
-  theme(legend.position = "top")
-```
-
-**Interpretation:** Logistic regression outperforms k-NN on ROC AUC (0.745 vs. 0.714), sensitivity, and accuracy. k-NN achieves a slightly higher specificity (0.687 vs. 0.664). For default detection where catching defaulters is the priority, logistic regression is the stronger performer of the two.
-
-\newpage
-
-# Section 5: Business Implications
-
-- **Logistic regression** is the better-performing model of the two and has the added advantage of interpretability — each predictor's effect on default probability can be quantified and explained to risk managers and regulators.
-- **k-NN** performs slightly below logistic regression on most metrics. Its lower sensitivity means more defaults go undetected, which is a significant drawback in a credit risk context.
-- At the current 0.50 probability threshold, both models miss roughly a third of actual defaulters. A BNPL provider could lower the threshold to flag more potential defaulters, trading some specificity for higher sensitivity — a business decision depending on the relative cost of missed defaults versus false alarms.
-- The predicted default probabilities from both models can support practical risk actions: prioritizing manual review for borderline cases, applying lower credit limits to high-risk customers, and triggering early repayment reminders.
 
