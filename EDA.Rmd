@@ -9,6 +9,7 @@ header-includes:
   - \floatplacement{figure}{H}
   - \usepackage{sectsty}
   - \allsectionsfont{\centering}
+  - \pagestyle{empty}
 ---
 
 ```{r setup, include=FALSE}
@@ -37,14 +38,16 @@ df <- df %>%
     transaction_date = mdy(transaction_date)
   )
 ```
-
+\thispagestyle{empty}
 # Summary of Key EDA Findings
 
-- Overall default rate is **39.1%**, implying a moderate data imbalance, which should be addressesd by applying SMOTE.
+- Overall default rate is **39.1%**, implying a moderate data imbalance, which should be addressed by applying SMOTE.
 - **Unemployed and Student users** have the highest default rates (~49%), nearly double that of Self-Employed users (~26%).
-- Users with **Lower credit scores** (300–550 range) have higher default probability.
-- The default users have more **Missed payments and repayment delays**.
+- Users with **lower credit scores** (300--550 range) have higher default probability.
+- The default users have more **missed payments and repayment delays**.
 - **Higher debt-to-income ratio** leads to higher default probability.
+- **monthly_income** and **credit_score** exhibit a very high correlation (0.96), indicating multicollinearity; therefore, **monthly_income** is removed in the preprocessing stage.
+- **customer_segment** and **risk_score** are removed in the preprocessing stage due to potential data leakage concerns.
 
 # Dataset Overview
 
@@ -69,15 +72,13 @@ kable(overview, caption = "Dataset Overview",
 
 **Interpretation:** The dataset contains 10,345 transactions across 17 variables. Overall, 39.1% of users defaulted on their repayments.
 
-\newpage
-
 # Descriptive Statistics of Numerical Variables
 
 ```{r descriptive-stats}
 num_vars <- df %>%
-  select(age, credit_score, purchase_amount,
+  select(age, monthly_income, credit_score, purchase_amount,
          repayment_delay_days, missed_payments,
-         debt_to_income_ratio, app_usage_frequency)
+         debt_to_income_ratio, risk_score, app_usage_frequency)
 
 desc_stats <- num_vars %>%
   summarise(across(everything(), list(
@@ -95,42 +96,38 @@ desc_stats <- num_vars %>%
 kable(desc_stats,
       caption = "Descriptive Statistics of Numerical Variables",
       booktabs = TRUE, align = c("l", rep("r", 5))) %>%
-  kable_styling(latex_options = c("hold_position", "scale_down"))
+  kable_styling(latex_options = c("hold_position", "scale_down"), font_size = 9)
 ```
 
 **Interpretation:**
 
+- **Monthly Income** ranges widely, with extreme high values identified as outliers that warrant further attention in preprocessing.
 - **Credit Score** ranges from 300 to 850, with a median of 403, suggesting many users have low creditworthiness.
-- **Repayment Delay Days** averages 8.7 days, with some users delaying up to 33 days.
-- **Missed Payments** averages just over 1 per user, but ranges up to 7.
-
-\newpage
+- **Repayment Delay Days** averages 8.7 days, with some users delaying up to 33 days. **Missed Payments** ranges up to 7, and **Debt-to-Income Ratio** reaches 0.72. The extreme values in these three variables are removed in the preprocessing stage.
 
 # Target Variable Distribution
 
-```{r target-distribution, fig.width=5, fig.height=4}
+```{r target-distribution, fig.width=4, fig.height=3}
 df %>%
   count(default_flag) %>%
   mutate(pct = n / sum(n),
          label = paste0(comma(n), "\n(", percent(pct, accuracy = 0.1), ")")) %>%
   ggplot(aes(x = default_flag, y = n, fill = default_flag)) +
   geom_col(width = 0.5, show.legend = FALSE) +
-  geom_text(aes(label = label), vjust = -0.3, size = 4, fontface = "bold") +
+  geom_text(aes(label = label), vjust = -0.3, size = 3.5, fontface = "bold") +
   scale_fill_manual(values = c("No Default" = "#2196F3", "Default" = "#F44336")) +
   scale_y_continuous(labels = comma, limits = c(0, 7500)) +
   labs(title = "Distribution of Default Status",
        x = "Default Status", y = "Number of Users") +
-  theme_minimal(base_size = 12) +
+  theme_minimal(base_size = 11) +
   theme(plot.title = element_text(face = "bold", hjust = 0.5))
 ```
 
-**Interpretation:** The dataset has a moderate data imbalance problem. 61% of users did not default, while 39% did. SMOTE will be applied in data pre-processing stage to deal with this problem.
-
-\newpage
+**Interpretation:** The dataset has a moderate data imbalance problem. 61% of users did not default, while 39% did. SMOTE will be applied in data preprocessing stage to deal with this problem.
 
 # Default Rate by Employment Type
 
-```{r employment-default, fig.width=6, fig.height=4}
+```{r employment-default, fig.width=4.5, fig.height=3}
 df %>%
   group_by(employment_type) %>%
   summarise(
@@ -141,22 +138,20 @@ df %>%
   ggplot(aes(x = reorder(employment_type, -rate), y = rate, fill = employment_type)) +
   geom_col(width = 0.5, show.legend = FALSE) +
   geom_text(aes(label = percent(rate, accuracy = 0.1)),
-            vjust = -0.4, fontface = "bold", size = 4) +
+            vjust = -0.4, fontface = "bold", size = 3.5) +
   scale_y_continuous(labels = percent, limits = c(0, 0.6)) +
   scale_fill_brewer(palette = "Set2") +
   labs(title = "Default Rate by Employment Type",
        x = "Employment Type", y = "Default Rate") +
-  theme_minimal(base_size = 12) +
+  theme_minimal(base_size = 11) +
   theme(plot.title = element_text(face = "bold", hjust = 0.5))
 ```
 
-**Interpretation:** Unemployed users (48.7%) and Students (48.6%) have nearly **double** the default rate of Self-Employed users (26.2%) and significantly higher than Salaried workers (32.7%). This is because users with unstable or no income face greater difficulty in paying installment punctually.
-
-\newpage
+**Interpretation:** Unemployed users (48.7%) and Students (48.6%) have nearly double the default rate of Self-Employed users (26.2%) and significantly higher than Salaried workers (32.7%). This is because users with unstable or no income face greater difficulty in paying installment punctually.
 
 # Credit Score Distribution by Default Status
 
-```{r credit-score-pyramid, fig.width=7, fig.height=5}
+```{r credit-score-pyramid, fig.width=5, fig.height=3.5}
 pyramid_data <- df %>%
   mutate(score_band = cut(credit_score,
                           breaks = seq(300, 850, by = 50),
@@ -179,11 +174,11 @@ ggplot(pyramid_data, aes(x = n_plot, y = score_band, fill = default_flag)) +
   labs(title = "Credit Score Distribution by Default Status",
        x = "Number of Users", y = "Credit Score Band") +
   annotate("text", x = -x_max * 0.55, y = 11.7,
-           label = "No Default", colour = "#2196F3", fontface = "bold", size = 4) +
+           label = "No Default", colour = "#2196F3", fontface = "bold", size = 3.5) +
   annotate("text", x =  x_max * 0.55, y = 11.7,
-           label = "Default",    colour = "#F44336", fontface = "bold", size = 4) +
+           label = "Default",    colour = "#F44336", fontface = "bold", size = 3.5) +
   coord_cartesian(clip = "off") +
-  theme_minimal(base_size = 12) +
+  theme_minimal(base_size = 11) +
   theme(plot.title    = element_text(face = "bold", hjust = 0.5),
         plot.margin   = margin(t = 20, r = 10, b = 10, l = 10),
         legend.position = "none")
@@ -191,56 +186,50 @@ ggplot(pyramid_data, aes(x = n_plot, y = score_band, fill = default_flag)) +
 
 **Interpretation:** Users who defaulted tend to have a low credit score, ranging from 300 to 550, while non-defaulters show a wider and slightly higher distribution. This means that lower credit scores are associated with higher default risk.
 
-\newpage
-
 # Missed Payments & Repayment Delay vs. Default
 
-```{r missed-payments, fig.width=5, fig.height=4}
+```{r missed-payments, fig.width=4, fig.height=3}
 ggplot(df, aes(x = default_flag, y = missed_payments, fill = default_flag)) +
   geom_boxplot(show.legend = FALSE, outlier.alpha = 0.3) +
   scale_fill_manual(values = c("No Default" = "#2196F3", "Default" = "#F44336")) +
   labs(title = "Missed Payments by Default Status",
        x = "Default Status", y = "Number of Missed Payments") +
-  theme_minimal(base_size = 12) +
+  theme_minimal(base_size = 11) +
   theme(plot.title = element_text(face = "bold", hjust = 0.5))
 ```
 
 **Interpretation:** Defaulters have a wider distribution and a higher upper quartile of missed payments compared to non-defaulters. This is a strong signal of default risk, indicating users with repeatedly miss payments (e.g., 2 or more) are more likely to default.
 
-```{r repayment-delay, fig.width=5, fig.height=4}
+```{r repayment-delay, fig.width=4, fig.height=3}
 ggplot(df, aes(x = default_flag, y = repayment_delay_days, fill = default_flag)) +
   geom_boxplot(show.legend = FALSE, outlier.alpha = 0.3) +
   scale_fill_manual(values = c("No Default" = "#2196F3", "Default" = "#F44336")) +
   labs(title = "Repayment Delay (Days) by Default Status",
        x = "Default Status", y = "Delay in Days") +
-  theme_minimal(base_size = 12) +
+  theme_minimal(base_size = 11) +
   theme(plot.title = element_text(face = "bold", hjust = 0.5))
 ```
 
 **Interpretation:** Defaulters also tend to delay repayments significantly longer than non-defaulters. The higher median repayment delay days among defaulters suggests that late payment behaviour is also a good predictor.
 
-\newpage
-
 # Debt-to-Income Ratio vs. Default
 
-```{r dti-default, fig.width=6, fig.height=4}
+```{r dti-default, fig.width=4.5, fig.height=3}
 ggplot(df, aes(x = default_flag, y = debt_to_income_ratio, fill = default_flag)) +
   geom_boxplot(show.legend = FALSE, outlier.alpha = 0.3) +
   scale_fill_manual(values = c("No Default" = "#2196F3", "Default" = "#F44336")) +
   scale_y_continuous(labels = percent) +
   labs(title = "Debt-to-Income Ratio by Default Status",
        x = "Default Status", y = "Debt-to-Income Ratio") +
-  theme_minimal(base_size = 12) +
+  theme_minimal(base_size = 11) +
   theme(plot.title = element_text(face = "bold", hjust = 0.5))
 ```
 
 **Interpretation:** Defaulters have a significantly higher median debt-to-income ratio compared to non-defaulters. Users spending a larger proportion of their income on debt repayments are correlated with higher financial risk.
 
-\newpage
-
 # Default Rate by Product Category
 
-```{r product-default, fig.width=7, fig.height=4}
+```{r product-default, fig.width=5, fig.height=3}
 df %>%
   group_by(product_category) %>%
   summarise(
@@ -251,26 +240,24 @@ df %>%
   ggplot(aes(x = reorder(product_category, -rate), y = rate, fill = product_category)) +
   geom_col(width = 0.5, show.legend = FALSE) +
   geom_text(aes(label = percent(rate, accuracy = 0.1)),
-            vjust = -0.4, fontface = "bold", size = 4) +
+            vjust = -0.4, fontface = "bold", size = 3.5) +
   scale_y_continuous(labels = percent, limits = c(0, 0.55)) +
   scale_fill_brewer(palette = "Pastel1") +
   labs(title = "Default Rate by Product Category",
        x = "Product Category", y = "Default Rate") +
-  theme_minimal(base_size = 12) +
+  theme_minimal(base_size = 11) +
   theme(plot.title = element_text(face = "bold", hjust = 0.5))
 ```
 
-**Interpretation:** Default rates across product categories are relatively similar, ranging from 37.7% (Sports) to 41.0% (Fashion). While Fashion purchases show a slightly higher default rate, the differences are not dramatic. 
-
-\newpage
+**Interpretation:** Default rates across product categories are relatively similar, ranging from 37.7% (Sports) to 41.0% (Fashion). While Fashion purchases show a slightly higher default rate, the differences are not dramatic.
 
 # Correlation Heatmap of Numerical Variables
 
-```{r correlation-heatmap, fig.width=7, fig.height=6}
+```{r correlation-heatmap, fig.width=5.5, fig.height=4}
 cor_data <- df %>%
-  select(age, credit_score, purchase_amount,
+  select(age, monthly_income, credit_score, purchase_amount,
          repayment_delay_days, missed_payments,
-         debt_to_income_ratio, app_usage_frequency) %>%
+         debt_to_income_ratio, risk_score, app_usage_frequency) %>%
   cor()
 
 corrplot(cor_data,
@@ -279,10 +266,16 @@ corrplot(cor_data,
          addCoef.col = "black",
          tl.col      = "black",
          tl.srt      = 45,
-         number.cex  = 0.7,
+         number.cex  = 0.6,
+         tl.cex      = 0.7,
          col         = colorRampPalette(c("#F44336", "white", "#2196F3"))(200),
          title       = "Correlation Matrix",
          mar         = c(0, 0, 1, 0))
 ```
 
-**Interpretation:** The correlation matrix reveals several notable relationships. **repayment_delay_days** is positively correlated with **missed_payments**, meaning that the longer a user delays a payment, the more likely the transaction will be flagged as a missed payment. Conversely, **credit_score** is negatively correlated with **debt_to_income_ratio**, suggesting that users with heavier debt burdens relative to their income are perceived as higher risk, leading to lower credit ratings.
+**Interpretation:** The correlation matrix reveals several notable relationships.
+
+- **repayment_delay_days** is positively correlated with **missed_payments**, meaning that the longer a user delays a payment, the more likely the transaction will be flagged as a missed payment. 
+- **credit_score** is negatively correlated with **debt_to_income_ratio**, suggesting that users with heavier debt burdens are perceived as higher risk. 
+- Notably, **monthly_income** and **credit_score** have an extremely high correlation, indicating severe multicollinearity; **monthly_income** is therefore removed from modelling. 
+- Furthermore, **risk_score** shows abnormally strong correlations with multiple variables (e.g., r = -0.89 with **credit_score**), which raises potential data leakage concerns and should be removed.

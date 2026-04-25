@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.4.20)  25 APR 2026 17:48
+This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.4.20)  26 APR 2026 00:19
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -444,7 +444,7 @@ Package uniquecounter Info: New unique counter `rerunfilecheck' on input line 28
 File: bkm-pdftex.def 2023-12-10 v1.31 bookmark driver for pdfTeX and luaTeX (HO)
 \BKM@id=\count332
 ))
-LaTeX Font Info:    Trying to load font information for T1+lmr on input line 88.
+LaTeX Font Info:    Trying to load font information for T1+lmr on input line 89.
 (c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/tex/latex/lm/t1lmr.fd
 File: t1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 ) (c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/tex/latex/l3backend/l3backend-pdftex.def
@@ -453,24 +453,24 @@ File: l3backend-pdftex.def 2026-02-18 L3 backend support: PDF output (pdfTeX)
 ) (./EDA.aux)
 \openout1 = `EDA.aux'.
 
-LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 88.
-LaTeX Font Info:    ... okay on input line 88.
-LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 88.
-LaTeX Font Info:    ... okay on input line 88.
-LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 88.
-LaTeX Font Info:    ... okay on input line 88.
-LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 88.
-LaTeX Font Info:    ... okay on input line 88.
-LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 88.
-LaTeX Font Info:    ... okay on input line 88.
-LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 88.
-LaTeX Font Info:    ... okay on input line 88.
-LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 88.
-LaTeX Font Info:    ... okay on input line 88.
-LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 88.
-LaTeX Font Info:    ... okay on input line 88.
-LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 88.
-LaTeX Font Info:    ... okay on input line 88.
+LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 89.
+LaTeX Font Info:    ... okay on input line 89.
+LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 89.
+LaTeX Font Info:    ... okay on input line 89.
+LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 89.
+LaTeX Font Info:    ... okay on input line 89.
+LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 89.
+LaTeX Font Info:    ... okay on input line 89.
+LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 89.
+LaTeX Font Info:    ... okay on input line 89.
+LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 89.
+LaTeX Font Info:    ... okay on input line 89.
+LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 89.
+LaTeX Font Info:    ... okay on input line 89.
+LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 89.
+LaTeX Font Info:    ... okay on input line 89.
+LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 89.
+LaTeX Font Info:    ... okay on input line 89.
 (c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/tex/latex/epstopdf-pkg/epstopdf-base.sty
 Package: epstopdf-base 2020-01-24 v2.11 Base part for package epstopdf
 Package epstopdf-base Info: Redefining graphics rule for `.eps' on input line 485.
@@ -511,123 +511,106 @@ File: epstopdf-sys.cfg 2010/07/13 v1.3 Configuration of (r)epstopdf for TeX Live
 * \@reversemarginfalse
 * (1in=72.27pt=25.4mm, 1cm=28.453pt)
 
-Package hyperref Info: Link coloring OFF on input line 88.
-LaTeX Font Info:    Trying to load font information for OT1+lmr on input line 90.
+Package hyperref Info: Link coloring OFF on input line 89.
+LaTeX Font Info:    Trying to load font information for OT1+lmr on input line 91.
 (c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/tex/latex/lm/ot1lmr.fd
 File: ot1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
-LaTeX Font Info:    Trying to load font information for OML+lmm on input line 90.
+LaTeX Font Info:    Trying to load font information for OML+lmm on input line 91.
 (c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/tex/latex/lm/omllmm.fd
 File: omllmm.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
-LaTeX Font Info:    Trying to load font information for OMS+lmsy on input line 90.
+LaTeX Font Info:    Trying to load font information for OMS+lmsy on input line 91.
 (c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/tex/latex/lm/omslmsy.fd
 File: omslmsy.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
-LaTeX Font Info:    Trying to load font information for OMX+lmex on input line 90.
+LaTeX Font Info:    Trying to load font information for OMX+lmex on input line 91.
 (c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/tex/latex/lm/omxlmex.fd
 File: omxlmex.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
 LaTeX Font Info:    External font `lmex10' loaded for size
-(Font)              <12> on input line 90.
+(Font)              <12> on input line 91.
 LaTeX Font Info:    External font `lmex10' loaded for size
-(Font)              <8> on input line 90.
+(Font)              <8> on input line 91.
 LaTeX Font Info:    External font `lmex10' loaded for size
-(Font)              <6> on input line 90.
-LaTeX Font Info:    Trying to load font information for U+msa on input line 90.
+(Font)              <6> on input line 91.
+LaTeX Font Info:    Trying to load font information for U+msa on input line 91.
 (c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/tex/latex/amsfonts/umsa.fd
 File: umsa.fd 2013/01/14 v3.01 AMS symbols A
 )
-LaTeX Font Info:    Trying to load font information for U+msb on input line 90.
+LaTeX Font Info:    Trying to load font information for U+msb on input line 91.
 (c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/tex/latex/amsfonts/umsb.fd
 File: umsb.fd 2013/01/14 v3.01 AMS symbols B
 )
-LaTeX Font Info:    Trying to load font information for TS1+lmr on input line 96.
+LaTeX Font Info:    Trying to load font information for TS1+lmr on input line 99.
 (c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/tex/latex/lm/ts1lmr.fd
 File: ts1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
-) [1
+)
+ignored: Infinite glue shrinkage found in box being split [1
 
-{c:/Users/user/AppData/Roaming/TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map}{c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-ec.enc}{c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-ts1.enc}] [2]
-<EDA_files/figure-latex/target-distribution-1.pdf, id=23, 361.35pt x 289.08pt>
+{c:/Users/user/AppData/Roaming/TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map}{c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-ec.enc}{c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-ts1.enc}]
+<EDA_files/figure-latex/target-distribution-1.pdf, id=20, 289.08pt x 216.81pt>
 File: EDA_files/figure-latex/target-distribution-1.pdf Graphic file (type pdf)
 <use EDA_files/figure-latex/target-distribution-1.pdf>
-Package pdftex.def Info: EDA_files/figure-latex/target-distribution-1.pdf  used on input line 174.
-(pdftex.def)             Requested size: 361.34912pt x 289.07928pt.
-[3 <./EDA_files/figure-latex/target-distribution-1.pdf>]
-<EDA_files/figure-latex/employment-default-1.pdf, id=35, 433.62pt x 289.08pt>
+Package pdftex.def Info: EDA_files/figure-latex/target-distribution-1.pdf  used on input line 188.
+(pdftex.def)             Requested size: 289.07928pt x 216.80946pt.
+<EDA_files/figure-latex/employment-default-1.pdf, id=21, 325.215pt x 216.81pt>
 File: EDA_files/figure-latex/employment-default-1.pdf Graphic file (type pdf)
 <use EDA_files/figure-latex/employment-default-1.pdf>
-Package pdftex.def Info: EDA_files/figure-latex/employment-default-1.pdf  used on input line 185.
-(pdftex.def)             Requested size: 433.61894pt x 289.07928pt.
-[4 <./EDA_files/figure-latex/employment-default-1.pdf>]
-<EDA_files/figure-latex/credit-score-pyramid-1.pdf, id=47, 505.89pt x 361.35pt>
+Package pdftex.def Info: EDA_files/figure-latex/employment-default-1.pdf  used on input line 197.
+(pdftex.def)             Requested size: 325.2142pt x 216.80946pt.
+[2 <./EDA_files/figure-latex/target-distribution-1.pdf>]
+<EDA_files/figure-latex/credit-score-pyramid-1.pdf, id=33, 361.35pt x 252.945pt>
 File: EDA_files/figure-latex/credit-score-pyramid-1.pdf Graphic file (type pdf)
 <use EDA_files/figure-latex/credit-score-pyramid-1.pdf>
-Package pdftex.def Info: EDA_files/figure-latex/credit-score-pyramid-1.pdf  used on input line 198.
-(pdftex.def)             Requested size: 505.88875pt x 361.34912pt.
-
-Overfull \hbox (36.13373pt too wide) in paragraph at lines 198--198
- [] 
- []
-
-[5 <./EDA_files/figure-latex/credit-score-pyramid-1.pdf>]
-<EDA_files/figure-latex/missed-payments-1.pdf, id=59, 361.35pt x 289.08pt>
+Package pdftex.def Info: EDA_files/figure-latex/credit-score-pyramid-1.pdf  used on input line 208.
+(pdftex.def)             Requested size: 361.34912pt x 252.94438pt.
+<EDA_files/figure-latex/missed-payments-1.pdf, id=34, 289.08pt x 216.81pt>
 File: EDA_files/figure-latex/missed-payments-1.pdf Graphic file (type pdf)
 <use EDA_files/figure-latex/missed-payments-1.pdf>
-Package pdftex.def Info: EDA_files/figure-latex/missed-payments-1.pdf  used on input line 210.
-(pdftex.def)             Requested size: 361.34912pt x 289.07928pt.
-<EDA_files/figure-latex/repayment-delay-1.pdf, id=60, 361.35pt x 289.08pt>
+Package pdftex.def Info: EDA_files/figure-latex/missed-payments-1.pdf  used on input line 218.
+(pdftex.def)             Requested size: 289.07928pt x 216.80946pt.
+[3 <./EDA_files/figure-latex/employment-default-1.pdf> <./EDA_files/figure-latex/credit-score-pyramid-1.pdf>]
+<EDA_files/figure-latex/repayment-delay-1.pdf, id=53, 289.08pt x 216.81pt>
 File: EDA_files/figure-latex/repayment-delay-1.pdf Graphic file (type pdf)
 <use EDA_files/figure-latex/repayment-delay-1.pdf>
-Package pdftex.def Info: EDA_files/figure-latex/repayment-delay-1.pdf  used on input line 217.
-(pdftex.def)             Requested size: 361.34912pt x 289.07928pt.
-[6 <./EDA_files/figure-latex/missed-payments-1.pdf>] [7 <./EDA_files/figure-latex/repayment-delay-1.pdf>]
-<EDA_files/figure-latex/dti-default-1.pdf, id=91, 433.62pt x 289.08pt>
+Package pdftex.def Info: EDA_files/figure-latex/repayment-delay-1.pdf  used on input line 225.
+(pdftex.def)             Requested size: 289.07928pt x 216.80946pt.
+<EDA_files/figure-latex/dti-default-1.pdf, id=54, 325.215pt x 216.81pt>
 File: EDA_files/figure-latex/dti-default-1.pdf Graphic file (type pdf)
 <use EDA_files/figure-latex/dti-default-1.pdf>
-Package pdftex.def Info: EDA_files/figure-latex/dti-default-1.pdf  used on input line 229.
-(pdftex.def)             Requested size: 433.61894pt x 289.07928pt.
-[8 <./EDA_files/figure-latex/dti-default-1.pdf>]
-<EDA_files/figure-latex/product-default-1.pdf, id=107, 505.89pt x 289.08pt>
+Package pdftex.def Info: EDA_files/figure-latex/dti-default-1.pdf  used on input line 235.
+(pdftex.def)             Requested size: 325.2142pt x 216.80946pt.
+[4 <./EDA_files/figure-latex/missed-payments-1.pdf> <./EDA_files/figure-latex/repayment-delay-1.pdf>]
+<EDA_files/figure-latex/product-default-1.pdf, id=80, 361.35pt x 216.81pt>
 File: EDA_files/figure-latex/product-default-1.pdf Graphic file (type pdf)
 <use EDA_files/figure-latex/product-default-1.pdf>
-Package pdftex.def Info: EDA_files/figure-latex/product-default-1.pdf  used on input line 241.
-(pdftex.def)             Requested size: 505.88875pt x 289.07928pt.
-
-Overfull \hbox (36.13373pt too wide) in paragraph at lines 241--241
- [] 
- []
-
-[9 <./EDA_files/figure-latex/product-default-1.pdf>]
-<EDA_files/figure-latex/correlation-heatmap-1.pdf, id=119, 505.89pt x 433.62pt>
+Package pdftex.def Info: EDA_files/figure-latex/product-default-1.pdf  used on input line 245.
+(pdftex.def)             Requested size: 361.34912pt x 216.80946pt.
+<EDA_files/figure-latex/correlation-heatmap-1.pdf, id=81, 397.485pt x 289.08pt>
 File: EDA_files/figure-latex/correlation-heatmap-1.pdf Graphic file (type pdf)
 <use EDA_files/figure-latex/correlation-heatmap-1.pdf>
-Package pdftex.def Info: EDA_files/figure-latex/correlation-heatmap-1.pdf  used on input line 253.
-(pdftex.def)             Requested size: 505.88875pt x 433.61894pt.
-
-Overfull \hbox (36.13373pt too wide) in paragraph at lines 253--253
- [] 
- []
-
-[10 <./EDA_files/figure-latex/correlation-heatmap-1.pdf>] (./EDA.aux)
+Package pdftex.def Info: EDA_files/figure-latex/correlation-heatmap-1.pdf  used on input line 255.
+(pdftex.def)             Requested size: 397.48402pt x 289.07928pt.
+[5 <./EDA_files/figure-latex/dti-default-1.pdf> <./EDA_files/figure-latex/product-default-1.pdf>] [6 <./EDA_files/figure-latex/correlation-heatmap-1.pdf>] (./EDA.aux)
  ***********
 LaTeX2e <2025-11-01>
 L3 programming layer <2026-03-20>
  ***********
  ) 
 Here is how much of TeX's memory you used:
- 12924 strings out of 469339
- 203624 string characters out of 5464315
- 621785 words of memory out of 5000000
- 41510 multiletter control sequences out of 15000+600000
- 659211 words of font info for 65 fonts, out of 8000000 for 9000
+ 12922 strings out of 469339
+ 203618 string characters out of 5464315
+ 631768 words of memory out of 5000000
+ 41511 multiletter control sequences out of 15000+600000
+ 662208 words of font info for 66 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
- 89i,7n,93p,611b,521s stack positions out of 10000i,1000n,20000p,200000b,200000s
-<c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmbx10.pfb><c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmbx12.pfb><c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr10.pfb><c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr17.pfb>
-Output written on EDA.pdf (10 pages, 164666 bytes).
+ 89i,7n,93p,611b,603s stack positions out of 10000i,1000n,20000p,200000b,200000s
+<c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmbx10.pfb><c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmbx12.pfb><c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr10.pfb><c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr17.pfb><c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr9.pfb>
+Output written on EDA.pdf (6 pages, 194211 bytes).
 PDF statistics:
- 192 PDF objects out of 1000 (max. 8388607)
- 153 compressed objects within 2 object streams
- 23 named destinations out of 1000 (max. 500000)
+ 179 PDF objects out of 1000 (max. 8388607)
+ 142 compressed objects within 2 object streams
+ 19 named destinations out of 1000 (max. 500000)
  121 words of extra memory for PDF output out of 10000 (max. 10000000)
 
