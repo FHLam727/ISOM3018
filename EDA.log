@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.4.20)  26 APR 2026 00:19
+This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.4.20)  26 APR 2026 00:42
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -546,51 +546,58 @@ LaTeX Font Info:    Trying to load font information for TS1+lmr on input line 99
 (c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/tex/latex/lm/ts1lmr.fd
 File: ts1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
+LaTeX Font Info:    Trying to load font information for T1+lmtt on input line 115.
+(c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/tex/latex/lm/t1lmtt.fd
+File: t1lmtt.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
+)
+LaTeX Font Info:    Font shape `T1/lmtt/bx/n' in size <10> not available
+(Font)              Font shape `T1/lmtt/b/n' tried instead on input line 115.
+
 ignored: Infinite glue shrinkage found in box being split [1
 
 {c:/Users/user/AppData/Roaming/TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map}{c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-ec.enc}{c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-ts1.enc}]
-<EDA_files/figure-latex/target-distribution-1.pdf, id=20, 289.08pt x 216.81pt>
+<EDA_files/figure-latex/target-distribution-1.pdf, id=21, 289.08pt x 216.81pt>
 File: EDA_files/figure-latex/target-distribution-1.pdf Graphic file (type pdf)
 <use EDA_files/figure-latex/target-distribution-1.pdf>
-Package pdftex.def Info: EDA_files/figure-latex/target-distribution-1.pdf  used on input line 188.
+Package pdftex.def Info: EDA_files/figure-latex/target-distribution-1.pdf  used on input line 190.
 (pdftex.def)             Requested size: 289.07928pt x 216.80946pt.
-<EDA_files/figure-latex/employment-default-1.pdf, id=21, 325.215pt x 216.81pt>
+<EDA_files/figure-latex/employment-default-1.pdf, id=22, 325.215pt x 216.81pt>
 File: EDA_files/figure-latex/employment-default-1.pdf Graphic file (type pdf)
 <use EDA_files/figure-latex/employment-default-1.pdf>
-Package pdftex.def Info: EDA_files/figure-latex/employment-default-1.pdf  used on input line 197.
+Package pdftex.def Info: EDA_files/figure-latex/employment-default-1.pdf  used on input line 199.
 (pdftex.def)             Requested size: 325.2142pt x 216.80946pt.
 [2 <./EDA_files/figure-latex/target-distribution-1.pdf>]
-<EDA_files/figure-latex/credit-score-pyramid-1.pdf, id=33, 361.35pt x 252.945pt>
+<EDA_files/figure-latex/credit-score-pyramid-1.pdf, id=34, 361.35pt x 252.945pt>
 File: EDA_files/figure-latex/credit-score-pyramid-1.pdf Graphic file (type pdf)
 <use EDA_files/figure-latex/credit-score-pyramid-1.pdf>
-Package pdftex.def Info: EDA_files/figure-latex/credit-score-pyramid-1.pdf  used on input line 208.
+Package pdftex.def Info: EDA_files/figure-latex/credit-score-pyramid-1.pdf  used on input line 210.
 (pdftex.def)             Requested size: 361.34912pt x 252.94438pt.
-<EDA_files/figure-latex/missed-payments-1.pdf, id=34, 289.08pt x 216.81pt>
+<EDA_files/figure-latex/missed-payments-1.pdf, id=35, 289.08pt x 216.81pt>
 File: EDA_files/figure-latex/missed-payments-1.pdf Graphic file (type pdf)
 <use EDA_files/figure-latex/missed-payments-1.pdf>
-Package pdftex.def Info: EDA_files/figure-latex/missed-payments-1.pdf  used on input line 218.
+Package pdftex.def Info: EDA_files/figure-latex/missed-payments-1.pdf  used on input line 220.
 (pdftex.def)             Requested size: 289.07928pt x 216.80946pt.
 [3 <./EDA_files/figure-latex/employment-default-1.pdf> <./EDA_files/figure-latex/credit-score-pyramid-1.pdf>]
-<EDA_files/figure-latex/repayment-delay-1.pdf, id=53, 289.08pt x 216.81pt>
+<EDA_files/figure-latex/repayment-delay-1.pdf, id=54, 289.08pt x 216.81pt>
 File: EDA_files/figure-latex/repayment-delay-1.pdf Graphic file (type pdf)
 <use EDA_files/figure-latex/repayment-delay-1.pdf>
-Package pdftex.def Info: EDA_files/figure-latex/repayment-delay-1.pdf  used on input line 225.
+Package pdftex.def Info: EDA_files/figure-latex/repayment-delay-1.pdf  used on input line 227.
 (pdftex.def)             Requested size: 289.07928pt x 216.80946pt.
-<EDA_files/figure-latex/dti-default-1.pdf, id=54, 325.215pt x 216.81pt>
+<EDA_files/figure-latex/dti-default-1.pdf, id=55, 325.215pt x 216.81pt>
 File: EDA_files/figure-latex/dti-default-1.pdf Graphic file (type pdf)
 <use EDA_files/figure-latex/dti-default-1.pdf>
-Package pdftex.def Info: EDA_files/figure-latex/dti-default-1.pdf  used on input line 235.
+Package pdftex.def Info: EDA_files/figure-latex/dti-default-1.pdf  used on input line 237.
 (pdftex.def)             Requested size: 325.2142pt x 216.80946pt.
 [4 <./EDA_files/figure-latex/missed-payments-1.pdf> <./EDA_files/figure-latex/repayment-delay-1.pdf>]
-<EDA_files/figure-latex/product-default-1.pdf, id=80, 361.35pt x 216.81pt>
+<EDA_files/figure-latex/product-default-1.pdf, id=81, 361.35pt x 216.81pt>
 File: EDA_files/figure-latex/product-default-1.pdf Graphic file (type pdf)
 <use EDA_files/figure-latex/product-default-1.pdf>
-Package pdftex.def Info: EDA_files/figure-latex/product-default-1.pdf  used on input line 245.
+Package pdftex.def Info: EDA_files/figure-latex/product-default-1.pdf  used on input line 247.
 (pdftex.def)             Requested size: 361.34912pt x 216.80946pt.
-<EDA_files/figure-latex/correlation-heatmap-1.pdf, id=81, 397.485pt x 289.08pt>
+<EDA_files/figure-latex/correlation-heatmap-1.pdf, id=82, 397.485pt x 289.08pt>
 File: EDA_files/figure-latex/correlation-heatmap-1.pdf Graphic file (type pdf)
 <use EDA_files/figure-latex/correlation-heatmap-1.pdf>
-Package pdftex.def Info: EDA_files/figure-latex/correlation-heatmap-1.pdf  used on input line 255.
+Package pdftex.def Info: EDA_files/figure-latex/correlation-heatmap-1.pdf  used on input line 257.
 (pdftex.def)             Requested size: 397.48402pt x 289.07928pt.
 [5 <./EDA_files/figure-latex/dti-default-1.pdf> <./EDA_files/figure-latex/product-default-1.pdf>] [6 <./EDA_files/figure-latex/correlation-heatmap-1.pdf>] (./EDA.aux)
  ***********
@@ -599,18 +606,18 @@ L3 programming layer <2026-03-20>
  ***********
  ) 
 Here is how much of TeX's memory you used:
- 12922 strings out of 469339
- 203618 string characters out of 5464315
+ 12967 strings out of 469339
+ 204367 string characters out of 5464315
  631768 words of memory out of 5000000
- 41511 multiletter control sequences out of 15000+600000
- 662208 words of font info for 66 fonts, out of 8000000 for 9000
+ 41552 multiletter control sequences out of 15000+600000
+ 662526 words of font info for 67 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
  89i,7n,93p,611b,603s stack positions out of 10000i,1000n,20000p,200000b,200000s
-<c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmbx10.pfb><c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmbx12.pfb><c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr10.pfb><c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr17.pfb><c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr9.pfb>
-Output written on EDA.pdf (6 pages, 194211 bytes).
+<c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmbx10.pfb><c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmbx12.pfb><c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr10.pfb><c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr17.pfb><c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr9.pfb><c:/Users/user/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmtk10.pfb>
+Output written on EDA.pdf (6 pages, 219827 bytes).
 PDF statistics:
- 179 PDF objects out of 1000 (max. 8388607)
- 142 compressed objects within 2 object streams
+ 184 PDF objects out of 1000 (max. 8388607)
+ 145 compressed objects within 2 object streams
  19 named destinations out of 1000 (max. 500000)
  121 words of extra memory for PDF output out of 10000 (max. 10000000)
 

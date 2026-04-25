@@ -46,8 +46,8 @@ df <- df %>%
 - Users with **lower credit scores** (300--550 range) have higher default probability.
 - The default users have more **missed payments and repayment delays**.
 - **Higher debt-to-income ratio** leads to higher default probability.
-- **monthly_income** and **credit_score** exhibit a very high correlation (0.96), indicating multicollinearity; therefore, **monthly_income** is removed in the preprocessing stage.
-- **customer_segment** and **risk_score** are removed in the preprocessing stage due to potential data leakage concerns.
+- **`monthly_income`** and **`credit_score`** exhibit a very high correlation (0.96), indicating multicollinearity; therefore, **`monthly_income`** is removed in the preprocessing stage.
+- **`customer_segment`** and **`risk_score`** are removed in the preprocessing stage due to potential data leakage concerns.
 
 # Dataset Overview
 
@@ -275,7 +275,7 @@ corrplot(cor_data,
 
 **Interpretation:** The correlation matrix reveals several notable relationships.
 
-- **repayment_delay_days** is positively correlated with **missed_payments**, meaning that the longer a user delays a payment, the more likely the transaction will be flagged as a missed payment. 
-- **credit_score** is negatively correlated with **debt_to_income_ratio**, suggesting that users with heavier debt burdens are perceived as higher risk. 
-- Notably, **monthly_income** and **credit_score** have an extremely high correlation, indicating severe multicollinearity; **monthly_income** is therefore removed from modelling. 
-- Furthermore, **risk_score** shows abnormally strong correlations with multiple variables (e.g., r = -0.89 with **credit_score**), which raises potential data leakage concerns and should be removed.
+- **`repayment_delay_days`** is positively correlated with **`missed_payments`**, meaning that the longer a user delays a payment, the more likely the transaction will be flagged as a missed payment. 
+- **`credit_score`** is negatively correlated with **`debt_to_income_ratio`**, suggesting that users with heavier debt burdens are perceived as higher risk. 
+- Notably, **`monthly_income`** and **`credit_score`** have an extremely high correlation, indicating severe multicollinearity; **`monthly_income`** is therefore removed from modelling. 
+- Furthermore, **`risk_score`** shows abnormally strong correlations with multiple variables (e.g., r = -0.89 with **`credit_score`**), which raises potential data leakage concerns and should be removed.
