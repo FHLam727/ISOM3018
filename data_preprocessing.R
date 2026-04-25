@@ -52,6 +52,13 @@ df_clean <- df_clean %>%
     bnpl_installments = factor(bnpl_installments, levels = c(3, 6, 9, 12))
   )
 
+df_clean <- df_clean %>%
+  filter(
+    debt_to_income_ratio <= quantile(debt_to_income_ratio, 0.99),
+    missed_payments      <= quantile(missed_payments, 0.99),
+    repayment_delay_days <= quantile(repayment_delay_days, 0.99)
+  )
+
 # 確認 target variable 分佈
 cat("\nTarget variable 分佈 (SMOTE 之前):\n")
 print(table(df_clean$default_flag))
