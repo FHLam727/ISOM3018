@@ -42,7 +42,7 @@ df <- df %>%
 
 - Overall default rate is **39.1%**, implying a moderate data imbalance, which should be addressesd by applying SMOTE.
 - **Unemployed and Student users** have the highest default rates (~49%), nearly double that of Self-Employed users (~26%).
-- Users with **Lower credit scores** (300–500 range) have higher default probability.
+- Users with **Lower credit scores** (300–550 range) have higher default probability.
 - The default users have more **Missed payments and repayment delays**.
 - **Higher debt-to-income ratio** leads to higher default probability.
 
@@ -189,7 +189,7 @@ ggplot(pyramid_data, aes(x = n_plot, y = score_band, fill = default_flag)) +
         legend.position = "none")
 ```
 
-**Interpretation:** Users who defaulted tend to have a low credit score, ranging from 300 to 500, while non-defaulters show a wider and slightly higher distribution. This means that lower credit scores are associated with higher default risk.
+**Interpretation:** Users who defaulted tend to have a low credit score, ranging from 300 to 550, while non-defaulters show a wider and slightly higher distribution. This means that lower credit scores are associated with higher default risk.
 
 \newpage
 
