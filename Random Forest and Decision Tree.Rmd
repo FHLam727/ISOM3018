@@ -31,49 +31,163 @@ Two models were developed to predict customer default risk: Decision Tree and Ra
 train_df <- readRDS("train_df.rds")
 test_df  <- readRDS("test_df.rds")
 
+validation_df <- test_df
+
+as_binary_factor <- function(y) {
+  if (is.numeric(y) || is.integer(y)) {
+    y <- factor(y, levels = sort(unique(y)))
+  } else if (!is.factor(y)) {
+    y <- factor(y)
+  }
+  if (nlevels(y) != 2) {
+    stop("default_flag must be a binary outcome (2 levels).")
+  }
+  y
+}
+
+eval_classifier <- function(truth, pred_class, pred_prob) {
+  truth <- as_binary_factor(truth)
+  pred_class <- factor(pred_class, levels = levels(truth))
+  positive_class <- levels(truth)[2]
+
+  conf <- confusionMatrix(pred_class, truth, positive = positive_class)
+  roc_obj <- roc(truth, pred_prob, levels = levels(truth), quiet = TRUE)
+
+  list(
+    conf = conf,
+    roc = roc_obj,
+    auc = as.numeric(auc(roc_obj)),
+    metrics = data.frame(
+      Accuracy = as.numeric(conf$overall["Accuracy"]),
+      Sensitivity = as.numeric(conf$byClass["Sensitivity"]),
+      Specificity = as.numeric(conf$byClass["Specificity"]),
+      Recall = as.numeric(conf$byClass["Recall"]),
+      Precision = as.numeric(conf$byClass["Precision"]),
+      F1 = as.numeric(conf$byClass["F1"]),
+      AUC = as.numeric(auc(roc_obj))
+    )
+  )
+}
+
+train_df$default_flag <- as_binary_factor(train_df$default_flag)
+validation_df$default_flag <- as_binary_factor(validation_df$default_flag)
+
+validation_y <- validation_df$default_flag
+positive_class <- levels(validation_y)[2]
 
 ```
 # 2. Decision Tree Model
 
 ```{r}
-# Model Training
 set.seed(42)
 
-dt_model <- rpart(
+# 2.1 Default tree (rpart defaults)
+dt_default <- rpart(
   default_flag ~ ., 
   data = train_df,
   method = "class"
 )
+
+# 2.2 Full tree (grow as large as possible, cp=0)
+dt_full <- rpart(
+  default_flag ~ .,
+  data = train_df,
+  method = "class",
+  control = rpart.control(cp = 0, minsplit = 2, minbucket = 1, maxdepth = 30, xval = 10)
+)
+
+# 2.3 Pruned tree (prune the full tree using the cp with minimum cross-validated error)
+cp_table <- dt_full$cptable
+best_cp <- cp_table[which.min(cp_table[, "xerror"]), "CP"]
+dt_pruned <- prune(dt_full, cp = best_cp)
 ```
 
 
 
 ## 2.1 Tree Visualization
 
-```{r}
-rpart.plot(dt_model)
+```{r, fig.show='hold', fig.width=7, fig.height=4}
+rpart.plot(dt_default, main = "Decision Tree (Default)")
+rpart.plot(dt_pruned, main = "Decision Tree (Pruned)")
 
 
 ```
 
+## 2.2 Tree Complexity (Leaf Count)
 ```{r}
-# Predictions
-dt_pred_class <- predict(dt_model, test_df, type = "class")
-dt_pred_prob  <- predict(dt_model, test_df)[,2]
+count_leaves <- function(fit) sum(fit$frame$var == "<leaf>")
+count_splits <- function(fit) sum(fit$frame$var != "<leaf>")
+count_nodes <- function(fit) nrow(fit$frame)
 
+leaf_counts <- data.frame(
+  Model = c("Decision Tree (Default)", "Decision Tree (Full)", "Decision Tree (Pruned)"),
+  Leaves = c(count_leaves(dt_default), count_leaves(dt_full), count_leaves(dt_pruned)),
+  Splits = c(count_splits(dt_default), count_splits(dt_full), count_splits(dt_pruned)),
+  Nodes = c(count_nodes(dt_default), count_nodes(dt_full), count_nodes(dt_pruned))
+)
 
-# Evaluation
-dt_conf <- confusionMatrix(dt_pred_class, test_df$default_flag)
-dt_roc  <- roc(test_df$default_flag, dt_pred_prob)
-dt_auc  <- auc(dt_roc)
+knitr::kable(leaf_counts, caption = "Decision Tree Complexity (Leaf Count)")
+```
+
+```{r}
+# Validation-set predictions + evaluation
+dt_default_pred_class <- predict(dt_default, validation_df, type = "class")
+dt_default_pred_prob  <- predict(dt_default, validation_df, type = "prob")[, positive_class]
+
+dt_full_pred_class <- predict(dt_full, validation_df, type = "class")
+dt_full_pred_prob  <- predict(dt_full, validation_df, type = "prob")[, positive_class]
+
+dt_pruned_pred_class <- predict(dt_pruned, validation_df, type = "class")
+dt_pruned_pred_prob  <- predict(dt_pruned, validation_df, type = "prob")[, positive_class]
+
+dt_default_eval <- eval_classifier(validation_y, dt_default_pred_class, dt_default_pred_prob)
+dt_full_eval <- eval_classifier(validation_y, dt_full_pred_class, dt_full_pred_prob)
+dt_pruned_eval <- eval_classifier(validation_y, dt_pruned_pred_class, dt_pruned_pred_prob)
+
+dt_results <- rbind(
+  data.frame(Model = "Decision Tree (Default)", dt_default_eval$metrics, check.names = FALSE),
+  data.frame(Model = "Decision Tree (Full)", dt_full_eval$metrics, check.names = FALSE),
+  data.frame(Model = "Decision Tree (Pruned)", dt_pruned_eval$metrics, check.names = FALSE)
+)
+```
+
+## 2.3 Validation Predictions (Sample)
+```{r}
+dt_validation_predictions <- data.frame(
+  Actual = validation_y,
+  DT_Default_Class = dt_default_pred_class,
+  DT_Default_Prob = round(dt_default_pred_prob, 4),
+  DT_Full_Class = dt_full_pred_class,
+  DT_Full_Prob = round(dt_full_pred_prob, 4),
+  DT_Pruned_Class = dt_pruned_pred_class,
+  DT_Pruned_Prob = round(dt_pruned_pred_prob, 4)
+)
+
+knitr::kable(head(dt_validation_predictions, 10), caption = "Decision Tree Predictions (First 10 Validation Rows)")
 ```
 
 
-## 2.2 Performance
-The Decision Tree model achieved an AUC of r round(dt_auc, 3).
+## 2.4 Performance
+Decision tree performance on the validation set:
 ```{r}
-knitr::kable(dt_conf$table, caption = "Confusion Matrix - Decision Tree")
-plot(dt_roc, col = "red", main = "ROC Curve - Decision Tree")
+knitr::kable(dt_results, digits = 3, caption = "Decision Tree Performance (Validation Set)")
+
+knitr::kable(dt_default_eval$conf$table, caption = "Confusion Matrix - Decision Tree (Default)")
+knitr::kable(dt_full_eval$conf$table, caption = "Confusion Matrix - Decision Tree (Full)")
+knitr::kable(dt_pruned_eval$conf$table, caption = "Confusion Matrix - Decision Tree (Pruned)")
+
+plot(dt_default_eval$roc, col = "red", main = "ROC Curves - Decision Trees")
+plot(dt_full_eval$roc, col = "darkorange", add = TRUE)
+plot(dt_pruned_eval$roc, col = "darkgreen", add = TRUE)
+legend(
+  "bottomright",
+  legend = c("Default", "Full", "Pruned"),
+  col = c("red", "darkorange", "darkgreen"),
+  lwd = 2,
+  bty = "n"
+)
+
+plotcp(dt_full)
 ```
 
 
@@ -81,13 +195,44 @@ plot(dt_roc, col = "red", main = "ROC Curve - Decision Tree")
 
 
 ```{r}
-# 3.1 Model Training
 set.seed(42)
-rf_model <- randomForest(
-  default_flag ~ ., 
+
+# 3.1 Random Forest (Default settings)
+rf_default <- randomForest(
+  default_flag ~ .,
+  data = train_df,
+  importance = TRUE
+)
+
+# 3.2 Random Forest (Tuned mtry using OOB error)
+train_y <- as_binary_factor(train_df$default_flag)
+train_x <- model.matrix(default_flag ~ ., data = train_df)[, -1, drop = FALSE]
+
+tuned <- tuneRF(
+  x = train_x,
+  y = train_y,
+  ntreeTry = 500,
+  stepFactor = 1.5,
+  improve = 0.01,
+  trace = FALSE,
+  plot = FALSE
+)
+best_mtry <- tuned[which.min(tuned[, "OOBError"]), "mtry"]
+
+rf_tuned <- randomForest(
+  default_flag ~ .,
   data = train_df,
   ntree = 500,
-  mtry = sqrt(ncol(train_df) - 1),
+  mtry = best_mtry,
+  importance = TRUE
+)
+
+# 3.3 Random Forest (All features per split; bagging-style)
+rf_all_features <- randomForest(
+  default_flag ~ .,
+  data = train_df,
+  ntree = 500,
+  mtry = ncol(train_x),
   importance = TRUE
 )
 ```
@@ -95,29 +240,73 @@ rf_model <- randomForest(
 
 
 ```{r}
-# Prediction & Evaluation
-rf_pred_class <- predict(rf_model, test_df)
-rf_pred_prob  <- predict(rf_model, test_df, type = "prob")[,2]
+# Validation-set prediction & evaluation
+rf_default_pred_class <- predict(rf_default, validation_df)
+rf_default_pred_prob  <- predict(rf_default, validation_df, type = "prob")[, positive_class]
+rf_default_eval <- eval_classifier(validation_y, rf_default_pred_class, rf_default_pred_prob)
 
-rf_conf <- confusionMatrix(rf_pred_class, test_df$default_flag)
-rf_roc  <- roc(test_df$default_flag, rf_pred_prob)
-rf_auc  <- auc(rf_roc)
+rf_tuned_pred_class <- predict(rf_tuned, validation_df)
+rf_tuned_pred_prob  <- predict(rf_tuned, validation_df, type = "prob")[, positive_class]
+rf_tuned_eval <- eval_classifier(validation_y, rf_tuned_pred_class, rf_tuned_pred_prob)
+
+rf_all_pred_class <- predict(rf_all_features, validation_df)
+rf_all_pred_prob  <- predict(rf_all_features, validation_df, type = "prob")[, positive_class]
+rf_all_eval <- eval_classifier(validation_y, rf_all_pred_class, rf_all_pred_prob)
+
+rf_results <- rbind(
+  data.frame(Model = "Random Forest (Default)", rf_default_eval$metrics, check.names = FALSE),
+  data.frame(Model = "Random Forest (Tuned mtry)", rf_tuned_eval$metrics, check.names = FALSE),
+  data.frame(Model = "Random Forest (All features)", rf_all_eval$metrics, check.names = FALSE)
+)
 ```
 
 ## 3.1 Performance
 
-The Random Forest model achieved an AUC of r round(rf_auc, 3).
+Random forest performance on the validation set:
 ```{r}
-knitr::kable(rf_conf$table, caption = "Confusion Matrix - Random Forest")
-plot(rf_roc, col = "blue", main = "ROC Curve - Random Forest")
+knitr::kable(rf_results, digits = 3, caption = "Random Forest Performance (Validation Set)")
+
+knitr::kable(rf_default_eval$conf$table, caption = "Confusion Matrix - Random Forest (Default)")
+knitr::kable(rf_tuned_eval$conf$table, caption = "Confusion Matrix - Random Forest (Tuned mtry)")
+knitr::kable(rf_all_eval$conf$table, caption = "Confusion Matrix - Random Forest (All features)")
+
+plot(rf_default_eval$roc, col = "blue", main = "ROC Curves - Random Forest")
+plot(rf_tuned_eval$roc, col = "purple", add = TRUE)
+plot(rf_all_eval$roc, col = "darkcyan", add = TRUE)
+legend(
+  "bottomright",
+  legend = c("Default", "Tuned mtry", "All features"),
+  col = c("blue", "purple", "darkcyan"),
+  lwd = 2,
+  bty = "n"
+)
+```
+
+## 3.2 Validation Predictions (Sample)
+```{r}
+rf_validation_predictions <- data.frame(
+  Actual = validation_y,
+  RF_Default_Class = rf_default_pred_class,
+  RF_Default_Prob = round(rf_default_pred_prob, 4),
+  RF_Tuned_Class = rf_tuned_pred_class,
+  RF_Tuned_Prob = round(rf_tuned_pred_prob, 4),
+  RF_AllFeat_Class = rf_all_pred_class,
+  RF_AllFeat_Prob = round(rf_all_pred_prob, 4)
+)
+
+knitr::kable(head(rf_validation_predictions, 10), caption = "Random Forest Predictions (First 10 Validation Rows)")
 ```
 
 
-## 3.2 Feature Importance
-The Random Forest model was trained using 500 trees, with 5 variables randomly selected at each split.
+## 3.3 Feature Importance
+The feature importance below is computed from the best random forest variant by validation AUC.
 ```{r, fig.align='center', fig.width=6, fig.height=4}
+best_rf_idx <- which.max(rf_results$AUC)
+best_rf_name <- rf_results$Model[best_rf_idx]
+best_rf_model <- list(rf_default, rf_tuned, rf_all_features)[[best_rf_idx]]
+
 # ===== Feature Importance =====
-importance_df <- as.data.frame(importance(rf_model))
+importance_df <- as.data.frame(importance(best_rf_model))
 
 # Convert rownames to column
 importance_df$Feature <- rownames(importance_df)
@@ -142,7 +331,7 @@ ggplot(top_features, aes(x = reorder(Feature, MeanDecreaseGini),
   geom_col() +
   coord_flip() +
   labs(
-    title = "Top 10 Important Features",
+    title = paste0("Top 10 Important Features (", best_rf_name, ")"),
     x = "Feature",
     y = "Importance (Mean Decrease Gini)"
   ) +
@@ -153,22 +342,25 @@ ggplot(top_features, aes(x = reorder(Feature, MeanDecreaseGini),
 knitr::kable(
   top_features,
   digits = 2,
-  caption = "Top 10 Important Features (Random Forest)",
+  caption = paste0("Top 10 Important Features (", best_rf_name, ")"),
   row.names = FALSE
 )
 
 
 
 ```
-## 3.3 Performance Summary
+## 3.4 Performance Summary (Best Random Forest)
 ```{r}
+best_rf_eval <- list(rf_default_eval, rf_tuned_eval, rf_all_eval)[[best_rf_idx]]
+
 # ===== Performance Table =====
 performance <- data.frame(
-  Metric = c("Accuracy", "Recall", "AUC"),
+  Metric = c("Accuracy", "Sensitivity", "Specificity", "AUC"),
   Value = c(
-    rf_conf$overall['Accuracy'],
-    rf_conf$byClass['Recall'],
-    rf_auc
+    best_rf_eval$conf$overall['Accuracy'],
+    best_rf_eval$conf$byClass['Sensitivity'],
+    best_rf_eval$conf$byClass['Specificity'],
+    best_rf_eval$auc
   )
 )
 
@@ -185,32 +377,65 @@ knitr::kable(
 
 # 4. Model Comparison
 ```{r}
-# Extract key metrics
-acc_dt <- dt_conf$overall['Accuracy']
-recall_dt <- dt_conf$byClass['Recall']
-
-acc_rf <- rf_conf$overall['Accuracy']
-recall_rf <- rf_conf$byClass['Recall']
-
-model_results <- data.frame(
-  Model = c("Decision Tree", "Random Forest"),
-  Accuracy = c(dt_conf$overall['Accuracy'], rf_conf$overall['Accuracy']),
-  Recall = c(dt_conf$byClass['Recall'], rf_conf$byClass['Recall']),
-  AUC = c(dt_auc, rf_auc)
+model_results <- rbind(
+  dt_results,
+  rf_results
 )
+rownames(model_results) <- NULL
 
-knitr::kable(model_results, digits = 3, caption = "Model Comparison")
+knitr::kable(model_results, digits = 3, caption = "Model Comparison (Validation Set)")
 
 ```
 
 
 # 5. Interpretation
 
-The Random Forest model outperforms the Decision Tree model in terms of predictive accuracy and AUC, indicating a stronger ability to correctly classify default risk.
+This section explains *why* each modeling step is included, and how to interpret the validation results.
 
-While the Decision Tree provides clear and interpretable decision rules, its performance is limited due to overfitting and sensitivity to data variations. In contrast, Random Forest improves stability and generalization by aggregating multiple trees.
+## 5.1 How to read the metrics
+We evaluate every model on the **validation set** (`validation_df`, currently set to `test_df`) using:
 
-From a business perspective, Random Forest is more suitable for deployment in credit risk prediction, as it provides more reliable identification of high-risk customers. However, Decision Trees remain useful for explaining decision logic to stakeholders.
+- **AUC**: overall ranking quality across all probability thresholds (higher is better).
+- **Sensitivity (Recall)**: among actual defaulters, how many we correctly flag as default (higher reduces missed high-risk customers).
+- **Specificity**: among non-defaulters, how many we correctly approve (higher reduces false alarms / unnecessary rejection).
+- **Accuracy**: can be misleading if the classes are imbalanced, so we use it only as a supporting metric.
+
+The best model by validation AUC is **`r model_results$Model[which.max(model_results$AUC)]`** (AUC = `r round(max(model_results$AUC), 3)`).
+
+## 5.2 Decision Tree: why default → full → pruned
+**(1) Default tree (`dt_default`)**  
+We start with default settings as a baseline: it is fast to train, easy to visualize, and gives an interpretable “first-pass” model. It also helps verify that the data and target are set up correctly.
+
+**(2) Full tree (`dt_full`, cp = 0)**  
+We intentionally allow the tree to grow very large to observe the *maximum* complexity the training data can support. This is useful because it typically:
+- fits training patterns (including noise) very closely, and
+- exposes overfitting risk when validation performance does not improve.
+
+In this run, the full tree has **`r leaf_counts$Leaves[leaf_counts$Model=='Decision Tree (Full)']`** leaves (vs **`r leaf_counts$Leaves[leaf_counts$Model=='Decision Tree (Default)']`** for the default tree).
+
+**(3) Pruned tree (`dt_pruned`)**  
+Pruning is used to trade a small amount of training fit for better generalization and simpler rules. Here we prune the full tree using the **complexity parameter** chosen by cross-validation:
+- selected `cp` = **`r signif(best_cp, 4)`** (minimum cross-validated error in `dt_full$cptable`)
+- pruned tree leaves = **`r leaf_counts$Leaves[leaf_counts$Model=='Decision Tree (Pruned)']`**
+
+If pruning improves or maintains validation AUC while using fewer leaves, it suggests the full tree was capturing noise rather than signal.
+
+## 5.3 Random Forest: why default → tune `mtry` → all-features
+**(1) Default random forest (`rf_default`)**  
+This is the baseline ensemble. Compared with a single tree, random forests reduce variance by averaging many decorrelated trees.
+
+**(2) Tuned `mtry` (`rf_tuned`)**  
+`mtry` controls how many features are randomly considered at each split. Tuning it is a standard step because it changes the diversity/strength trade-off of trees in the ensemble.  
+We tune `mtry` using **out-of-bag (OOB) error** via `tuneRF()`, then refit with `ntree = 500`:
+- tuned `mtry` = **`r best_mtry`**
+
+**(3) All features per split (`rf_all_features`)**  
+Setting `mtry = p` (all predictors) is close to “bagging-style” trees. This is a useful comparison point: if this performs worse than tuned/default RF, it indicates that random feature selection is contributing to improved generalization.
+
+## 5.4 Practical takeaways
+- If your goal is to **catch as many defaulters as possible**, prioritize **Sensitivity** (and consider adjusting the decision threshold on predicted probabilities).
+- If your goal is to **avoid rejecting good customers**, prioritize **Specificity**.
+- Use the **pruned tree** when you need simple, explainable rules; use the **best RF** when you need stronger predictive performance.
 
 # 6. Business Implications
 
