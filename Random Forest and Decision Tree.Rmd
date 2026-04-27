@@ -76,8 +76,18 @@ validation_y <- validation_df$default_flag
 positive_class <- levels(validation_y)[2]
 
 ```
-# 2. Decision Tree Model
 
+# 2. Decision Tree Model
+Decision tree models are being built using rpart to predict the target variable (default_flag). To examine model complexity and potential overfitting issues, three versions of the decision tree are constructed: a default tree, a fully grown tree, and a pruned tree.
+
+Default Tree:
+The default decision tree is built using standard rpart parameters, acting as a baseline model.
+
+Full Tree:
+A fully grown tree is built by setting the complexity parameter (cp = 0) and allowing minimal restrictions on splitting, capturing all possible patterns in the training data.
+
+Pruned Tree:
+In order to solve possible overfitting issues, the full tree is pruned using the optimal complexity parameter (cp) selected by the minimum cross-validated error (xerror). 
 ```{r}
 set.seed(42)
 
@@ -101,19 +111,8 @@ cp_table <- dt_full$cptable
 best_cp <- cp_table[which.min(cp_table[, "xerror"]), "CP"]
 dt_pruned <- prune(dt_full, cp = best_cp)
 ```
-
-
-
-## 2.1 Tree Visualization
-
-```{r, fig.show='hold', fig.width=7, fig.height=4}
-rpart.plot(dt_default, main = "Decision Tree (Default)")
-rpart.plot(dt_pruned, main = "Decision Tree (Pruned)")
-
-
-```
-
-## 2.2 Tree Complexity (Leaf Count)
+## 2.1 Tree Complexity (Leaf Count)
+The leaf count of the three trees are being examined to check for complexity and overfitting issues.
 ```{r}
 count_leaves <- function(fit) sum(fit$frame$var == "<leaf>")
 count_splits <- function(fit) sum(fit$frame$var != "<leaf>")
@@ -128,6 +127,42 @@ leaf_counts <- data.frame(
 
 knitr::kable(leaf_counts, caption = "Decision Tree Complexity (Leaf Count)")
 ```
+
+
+## 2.2 Tree Visualization
+According to the tree complexity results above, the full tree is too deep for visualization and is ineffective to show. Therefore, only the default and pruned tree are being visualized. The visualization shows which combination of the factors will be classified as default or not.
+
+```{r, fig.width=8, fig.height=6}
+rpart.plot(
+  dt_default,
+  main = "Decision Tree (Default)",
+  fallen.leaves = TRUE,
+  compress = FALSE,
+  extra = 0,
+  varlen = 0,
+  faclen = 0,
+  digits = 2,
+  cex = 0.7,
+  tweak = 0.9,
+)
+```
+
+```{r, fig.width=20, fig.height=18}
+rpart.plot(
+  dt_pruned,
+  main = "Decision Tree (Pruned)",
+  fallen.leaves = FALSE,
+  uniform = TRUE,
+  compress = FALSE,
+  extra = 0,
+  varlen = 0,
+  faclen = 0,
+  digits = 2,
+  cex = 0.6,
+  tweak = 0.9
+)
+```
+
 
 ```{r}
 # Validation-set predictions + evaluation
@@ -151,24 +186,9 @@ dt_results <- rbind(
 )
 ```
 
-## 2.3 Validation Predictions (Sample)
-```{r}
-dt_validation_predictions <- data.frame(
-  Actual = validation_y,
-  DT_Default_Class = dt_default_pred_class,
-  DT_Default_Prob = round(dt_default_pred_prob, 4),
-  DT_Full_Class = dt_full_pred_class,
-  DT_Full_Prob = round(dt_full_pred_prob, 4),
-  DT_Pruned_Class = dt_pruned_pred_class,
-  DT_Pruned_Prob = round(dt_pruned_pred_prob, 4)
-)
 
-knitr::kable(head(dt_validation_predictions, 10), caption = "Decision Tree Predictions (First 10 Validation Rows)")
-```
-
-
-## 2.4 Performance
-Decision tree performance on the validation set:
+## 2.3 Performance
+The pruned decision tree provides the best overall performance by having the highest AUC. The default tree shows higher accuracy but performs poorly in identifying default cases due to low sensitivity, while the full tree improves sensitivity but has overfitting problems and weaker overall performance. 
 ```{r}
 knitr::kable(dt_results, digits = 3, caption = "Decision Tree Performance (Validation Set)")
 
@@ -192,7 +212,7 @@ plotcp(dt_full)
 
 
 # 3. Random Forest Model
-
+Random Forest Models are built to improve predictive performance and reduce overfitting compared to decision trees. Three versions are built: a default model, a tuned model with optimized mtry based on out-of-bag (OOB) error.
 
 ```{r}
 set.seed(42)
@@ -208,15 +228,18 @@ rf_default <- randomForest(
 train_y <- as_binary_factor(train_df$default_flag)
 train_x <- model.matrix(default_flag ~ ., data = train_df)[, -1, drop = FALSE]
 
-tuned <- tuneRF(
-  x = train_x,
-  y = train_y,
-  ntreeTry = 500,
-  stepFactor = 1.5,
-  improve = 0.01,
-  trace = FALSE,
-  plot = FALSE
-)
+tuned <- NULL
+suppressWarnings(invisible(capture.output({
+  tuned <- tuneRF(
+    x = train_x,
+    y = train_y,
+    ntreeTry = 500,
+    stepFactor = 1.5,
+    improve = 0.01,
+    trace = FALSE,
+    plot = FALSE
+  )
+})))
 best_mtry <- tuned[which.min(tuned[, "OOBError"]), "mtry"]
 
 rf_tuned <- randomForest(
@@ -261,8 +284,7 @@ rf_results <- rbind(
 ```
 
 ## 3.1 Performance
-
-Random forest performance on the validation set:
+The three random forest models show very similar performance, but the all-features model achieves the highest AUC (0.765), making it the best-performing model overall in terms of classification ability.
 ```{r}
 knitr::kable(rf_results, digits = 3, caption = "Random Forest Performance (Validation Set)")
 
@@ -282,24 +304,11 @@ legend(
 )
 ```
 
-## 3.2 Validation Predictions (Sample)
-```{r}
-rf_validation_predictions <- data.frame(
-  Actual = validation_y,
-  RF_Default_Class = rf_default_pred_class,
-  RF_Default_Prob = round(rf_default_pred_prob, 4),
-  RF_Tuned_Class = rf_tuned_pred_class,
-  RF_Tuned_Prob = round(rf_tuned_pred_prob, 4),
-  RF_AllFeat_Class = rf_all_pred_class,
-  RF_AllFeat_Prob = round(rf_all_pred_prob, 4)
-)
-
-knitr::kable(head(rf_validation_predictions, 10), caption = "Random Forest Predictions (First 10 Validation Rows)")
-```
 
 
-## 3.3 Feature Importance
-The feature importance below is computed from the best random forest variant by validation AUC.
+
+## 3.2 Feature Importance
+The feature importance below is computed from the best random forest chose above. From the results, it shows that the credit_score is the most important feature that affects the result.
 ```{r, fig.align='center', fig.width=6, fig.height=4}
 best_rf_idx <- which.max(rf_results$AUC)
 best_rf_name <- rf_results$Model[best_rf_idx]
@@ -331,7 +340,7 @@ ggplot(top_features, aes(x = reorder(Feature, MeanDecreaseGini),
   geom_col() +
   coord_flip() +
   labs(
-    title = paste0("Top 10 Important Features (", best_rf_name, ")"),
+    title = paste0("Top 10 Important Features"),
     x = "Feature",
     y = "Importance (Mean Decrease Gini)"
   ) +
@@ -349,7 +358,7 @@ knitr::kable(
 
 
 ```
-## 3.4 Performance Summary (Best Random Forest)
+## 3.3 Performance Summary (Best Random Forest)
 ```{r}
 best_rf_eval <- list(rf_default_eval, rf_tuned_eval, rf_all_eval)[[best_rf_idx]]
 
@@ -375,70 +384,4 @@ knitr::kable(
 ```
 
 
-# 4. Model Comparison
-```{r}
-model_results <- rbind(
-  dt_results,
-  rf_results
-)
-rownames(model_results) <- NULL
 
-knitr::kable(model_results, digits = 3, caption = "Model Comparison (Validation Set)")
-
-```
-
-
-# 5. Interpretation
-
-This section explains *why* each modeling step is included, and how to interpret the validation results.
-
-## 5.1 How to read the metrics
-We evaluate every model on the **validation set** (`validation_df`, currently set to `test_df`) using:
-
-- **AUC**: overall ranking quality across all probability thresholds (higher is better).
-- **Sensitivity (Recall)**: among actual defaulters, how many we correctly flag as default (higher reduces missed high-risk customers).
-- **Specificity**: among non-defaulters, how many we correctly approve (higher reduces false alarms / unnecessary rejection).
-- **Accuracy**: can be misleading if the classes are imbalanced, so we use it only as a supporting metric.
-
-The best model by validation AUC is **`r model_results$Model[which.max(model_results$AUC)]`** (AUC = `r round(max(model_results$AUC), 3)`).
-
-## 5.2 Decision Tree: why default → full → pruned
-**(1) Default tree (`dt_default`)**  
-We start with default settings as a baseline: it is fast to train, easy to visualize, and gives an interpretable “first-pass” model. It also helps verify that the data and target are set up correctly.
-
-**(2) Full tree (`dt_full`, cp = 0)**  
-We intentionally allow the tree to grow very large to observe the *maximum* complexity the training data can support. This is useful because it typically:
-- fits training patterns (including noise) very closely, and
-- exposes overfitting risk when validation performance does not improve.
-
-In this run, the full tree has **`r leaf_counts$Leaves[leaf_counts$Model=='Decision Tree (Full)']`** leaves (vs **`r leaf_counts$Leaves[leaf_counts$Model=='Decision Tree (Default)']`** for the default tree).
-
-**(3) Pruned tree (`dt_pruned`)**  
-Pruning is used to trade a small amount of training fit for better generalization and simpler rules. Here we prune the full tree using the **complexity parameter** chosen by cross-validation:
-- selected `cp` = **`r signif(best_cp, 4)`** (minimum cross-validated error in `dt_full$cptable`)
-- pruned tree leaves = **`r leaf_counts$Leaves[leaf_counts$Model=='Decision Tree (Pruned)']`**
-
-If pruning improves or maintains validation AUC while using fewer leaves, it suggests the full tree was capturing noise rather than signal.
-
-## 5.3 Random Forest: why default → tune `mtry` → all-features
-**(1) Default random forest (`rf_default`)**  
-This is the baseline ensemble. Compared with a single tree, random forests reduce variance by averaging many decorrelated trees.
-
-**(2) Tuned `mtry` (`rf_tuned`)**  
-`mtry` controls how many features are randomly considered at each split. Tuning it is a standard step because it changes the diversity/strength trade-off of trees in the ensemble.  
-We tune `mtry` using **out-of-bag (OOB) error** via `tuneRF()`, then refit with `ntree = 500`:
-- tuned `mtry` = **`r best_mtry`**
-
-**(3) All features per split (`rf_all_features`)**  
-Setting `mtry = p` (all predictors) is close to “bagging-style” trees. This is a useful comparison point: if this performs worse than tuned/default RF, it indicates that random feature selection is contributing to improved generalization.
-
-## 5.4 Practical takeaways
-- If your goal is to **catch as many defaulters as possible**, prioritize **Sensitivity** (and consider adjusting the decision threshold on predicted probabilities).
-- If your goal is to **avoid rejecting good customers**, prioritize **Specificity**.
-- Use the **pruned tree** when you need simple, explainable rules; use the **best RF** when you need stronger predictive performance.
-
-# 6. Business Implications
-
-The results suggest that customer default risk is influenced by complex interactions between multiple factors. The Random Forest model can be used to support risk-based decision-making, such as adjusting credit limits or implementing targeted risk controls.
-
-By leveraging these insights, businesses can reduce financial losses while maintaining customer growth through more informed lending strategies.
