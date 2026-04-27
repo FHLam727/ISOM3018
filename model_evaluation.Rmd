@@ -1,0 +1,339 @@
+---
+output:
+  pdf_document:
+    toc: false
+    number_sections: false
+    latex_engine: xelatex
+header-includes:
+  - \pagenumbering{gobble}
+  - \usepackage{booktabs}
+  - \usepackage{float}
+  - \usepackage{xcolor}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo       = FALSE,
+  message    = FALSE,
+  warning    = FALSE,
+  fig.align  = "center",
+  fig.width  = 6.5,
+  fig.height = 4,
+  fig.pos    = "H"
+)
+```
+
+```{r libraries}
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(caret)
+library(pROC)
+library(rpart)
+library(randomForest)
+```
+
+```{r build-models, cache=FALSE}
+# ── Load data ──────────────────────────────────────────────────────────────────
+train_df <- readRDS("train_df.rds")
+test_df  <- readRDS("test_df.rds")
+train_df$default_flag <- factor(train_df$default_flag, levels = c("No_Default","Default"))
+test_df$default_flag  <- factor(test_df$default_flag,  levels = c("No_Default","Default"))
+validation_y <- test_df$default_flag
+pos          <- "Default"
+
+# ── Evaluation helper ──────────────────────────────────────────────────────────
+eval_clf <- function(truth, pred_class, pred_prob, name) {
+  truth      <- factor(truth,      levels = c("No_Default","Default"))
+  pred_class <- factor(pred_class, levels = c("No_Default","Default"))
+  cm  <- confusionMatrix(pred_class, truth, positive = pos, mode = "everything")
+  roc <- roc(truth, pred_prob, levels = c("No_Default","Default"),
+             direction = "<", quiet = TRUE)
+  list(
+    name = name, cm = cm, roc = roc,
+    metrics = tibble(
+      Model       = name,
+      Recall      = as.numeric(cm$byClass["Sensitivity"]),
+      Specificity = as.numeric(cm$byClass["Specificity"]),
+      Precision   = as.numeric(cm$byClass["Precision"]),
+      `F1 Score`  = as.numeric(cm$byClass["F1"]),
+      AUC         = as.numeric(auc(roc))
+    )
+  )
+}
+
+# ── Logistic Regression & k-NN ─────────────────────────────────────────────────
+lp <- function(path) {
+  read_csv(path, show_col_types = FALSE) %>%
+    mutate(
+      default_flag = factor(default_flag, levels = c("No_Default","Default")),
+      .pred_class  = factor(.pred_class,  levels = c("No_Default","Default"))
+    )
+}
+preds_lr  <- lp("predictions_logistic_test.csv")
+preds_knn <- lp("predictions_knn_test.csv")
+e_lr  <- eval_clf(preds_lr$default_flag,  preds_lr$.pred_class,
+                  preds_lr$.pred_Default,  "Logistic Regression")
+e_knn <- eval_clf(preds_knn$default_flag, preds_knn$.pred_class,
+                  preds_knn$.pred_Default, "k-NN")
+
+# ── Decision Tree (3 configs, best by AUC) ─────────────────────────────────────
+set.seed(42)
+dt_def  <- rpart(default_flag ~ ., data = train_df, method = "class")
+dt_full <- rpart(default_flag ~ ., data = train_df, method = "class",
+  control = rpart.control(cp=0, minsplit=2, minbucket=1, maxdepth=30, xval=10))
+best_cp  <- dt_full$cptable[which.min(dt_full$cptable[,"xerror"]), "CP"]
+dt_prune <- prune(dt_full, cp = best_cp)
+
+e_dt_def   <- eval_clf(validation_y, predict(dt_def,   test_df, type="class"),
+                        predict(dt_def,   test_df, type="prob")[,pos], "Decision Tree (Default)")
+e_dt_full  <- eval_clf(validation_y, predict(dt_full,  test_df, type="class"),
+                        predict(dt_full,  test_df, type="prob")[,pos], "Decision Tree (Full)")
+e_dt_prune <- eval_clf(validation_y, predict(dt_prune, test_df, type="class"),
+                        predict(dt_prune, test_df, type="prob")[,pos], "Decision Tree (Pruned)")
+
+best_dt <- list(e_dt_def, e_dt_full, e_dt_prune)[[
+  which.max(c(e_dt_def$metrics$AUC, e_dt_full$metrics$AUC, e_dt_prune$metrics$AUC))]]
+
+# ── Random Forest (3 configs, best by AUC) ─────────────────────────────────────
+set.seed(42)
+rf_def <- randomForest(default_flag ~ ., data = train_df, importance = TRUE)
+
+tx <- model.matrix(default_flag ~ ., data = train_df)[, -1, drop = FALSE]
+ty <- train_df$default_flag
+set.seed(42)
+sink(tempfile())
+tuned <- tuneRF(tx, ty, ntreeTry=500, stepFactor=1.5,
+                improve=0.01, trace=FALSE, plot=FALSE)
+sink()
+best_mtry <- tuned[which.min(tuned[,"OOBError"]), "mtry"]
+
+rf_tuned <- randomForest(default_flag ~ ., data = train_df,
+                         ntree=500, mtry=best_mtry, importance=TRUE)
+rf_all   <- randomForest(default_flag ~ ., data = train_df,
+                         ntree=500, mtry=ncol(tx), importance=TRUE)
+
+e_rf_def   <- eval_clf(validation_y, predict(rf_def,   test_df),
+                        predict(rf_def,   test_df, type="prob")[,pos], "Random Forest (Default)")
+e_rf_tuned <- eval_clf(validation_y, predict(rf_tuned, test_df),
+                        predict(rf_tuned, test_df, type="prob")[,pos], "Random Forest (Tuned mtry)")
+e_rf_all   <- eval_clf(validation_y, predict(rf_all,   test_df),
+                        predict(rf_all,   test_df, type="prob")[,pos], "Random Forest (All features)")
+
+best_rf <- list(e_rf_def, e_rf_tuned, e_rf_all)[[
+  which.max(c(e_rf_def$metrics$AUC, e_rf_tuned$metrics$AUC, e_rf_all$metrics$AUC))]]
+
+# ── Final model pool ───────────────────────────────────────────────────────────
+final_metrics <- bind_rows(
+  e_lr$metrics, e_knn$metrics,
+  best_dt$metrics, best_rf$metrics
+)
+
+# ── All 5 metric win counts ────────────────────────────────────────────────────
+all_metric_cols <- c("Recall","Specificity","Precision","F1 Score","AUC")
+wins_all      <- sapply(all_metric_cols, function(col) which.max(final_metrics[[col]]))
+win_model_all <- final_metrics$Model[wins_all]
+
+# ── Primary metric wins (Recall + F1 Score) ────────────────────────────────────
+# Recall and F1 Score are prioritised because a missed defaulter (false negative)
+# is a direct financial loss; Specificity and Precision matter less since the
+# cost of wrongly flagging a good customer is far lower than missing a defaulter.
+primary_cols       <- c("Recall","F1 Score")
+wins_primary       <- sapply(primary_cols, function(col) which.max(final_metrics[[col]]))
+win_model_pri      <- final_metrics$Model[wins_primary]
+primary_win_counts <- tabulate(wins_primary, nbins = nrow(final_metrics))
+names(primary_win_counts) <- final_metrics$Model
+
+# Best model = most primary wins; ties broken by AUC
+final_metrics <- final_metrics %>%
+  mutate(PrimaryWins = primary_win_counts[Model]) %>%
+  arrange(desc(PrimaryWins), desc(AUC)) %>%
+  select(-PrimaryWins)
+
+# ── Key variables ──────────────────────────────────────────────────────────────
+best_model        <- final_metrics$Model[1]
+best_auc_val      <- round(final_metrics$AUC[final_metrics$Model == best_model], 3)
+best_recall_val   <- round(final_metrics$Recall[final_metrics$Model == best_model], 3)
+best_f1_val       <- round(final_metrics$`F1 Score`[final_metrics$Model == best_model], 3)
+worst_model       <- final_metrics$Model[nrow(final_metrics)]
+worst_auc         <- round(final_metrics$AUC[nrow(final_metrics)], 3)
+highest_auc_model <- final_metrics$Model[which.max(final_metrics$AUC)]
+highest_auc_val   <- round(max(final_metrics$AUC), 3)
+
+# ── Helpers ────────────────────────────────────────────────────────────────────
+tbl_fmt <- if (knitr::is_latex_output()) "latex" else "html"
+
+bold_best <- function(df, cols) {
+  for (col in cols) {
+    bv <- max(df[[col]], na.rm = TRUE)
+    df[[col]] <- ifelse(
+      round(df[[col]], 4) == round(bv, 4),
+      cell_spec(round(df[[col]], 4), bold = TRUE, format = tbl_fmt),
+      as.character(round(df[[col]], 4))
+    )
+  }
+  df
+}
+
+get_fn <- function(e) e$cm$table["No_Default","Default"]
+get_tp <- function(e) e$cm$table["Default",   "Default"]
+
+model_colors <- c(
+  "Logistic Regression"          = "#1565C0",
+  "k-NN"                         = "#2E7D32",
+  "Decision Tree (Default)"      = "#E65100",
+  "Decision Tree (Full)"         = "#BF360C",
+  "Decision Tree (Pruned)"       = "#FF6D00",
+  "Random Forest (Default)"      = "#6A1B9A",
+  "Random Forest (Tuned mtry)"   = "#4A148C",
+  "Random Forest (All features)" = "#9C27B0"
+)
+```
+As discussed in previous sections, 4 predictive models are trained based on 10345 transactions. Their predictive performance is evaluated using several performance metrics, which includes recall, specificity, precision, F1 Score, and AUC.
+
+The model with the highest scores across different performance metrics is considered the best model.
+
+
+# 5.1 ROC Curve Comparison
+Figure 1 displays the ROC curve for the 4 predictive models. Overall, their performance varies by different thresholds. K-NN model stays closest to the diagonal, which reflects that it is the weakest overall classification between defaulters and non-defaulters.
+
+```{r roc-plot, fig.cap="ROC curves for the four models on the test set."}
+bind_rows(
+  tibble(Model=e_lr$name,    fpr=1-e_lr$roc$specificities,    tpr=e_lr$roc$sensitivities),
+  tibble(Model=e_knn$name,   fpr=1-e_knn$roc$specificities,   tpr=e_knn$roc$sensitivities),
+  tibble(Model=best_dt$name, fpr=1-best_dt$roc$specificities, tpr=best_dt$roc$sensitivities),
+  tibble(Model=best_rf$name, fpr=1-best_rf$roc$specificities, tpr=best_rf$roc$sensitivities)
+) %>%
+  ggplot(aes(x=fpr, y=tpr, color=Model)) +
+  geom_path(linewidth=0.8) +
+  geom_abline(linetype="dashed", color="grey55") +
+  coord_equal() +
+  scale_color_manual(values=model_colors) +
+  labs(x="False Positive Rate", y="True Positive Rate", color=NULL) +
+  theme_minimal(base_size=11) +
+  theme(legend.position="top", legend.text=element_text(size=8))
+```
+
+
+# 5.2 Metric Comparison
+Figure 2 compares the predictive performance of these 4 models based on 5 performance metrics. Logistic Regression leads on Recall (0.66) and F1 Score (0.595), while Decision Tree (pruned) leads on Precision (0.659) and Specificity (0.848). Both models win 2 out of 5 performance metrics.
+
+In order to define the best model between Logistic Regression and Decision Tree (pruned), the real world applications of BNPL companies should be considered. For BNPL companies, missing an undetected defaulter leads to unrecovered debts from unpaid instalments. In contrast, a false rejection from a reliable customer only represents losing a potential transaction. Therefore, the cost of missing an undetected defaulter is much higher than that of a false rejection from a reliable customer.
+
+In this case, Recall should be prioritised in order to capture as many potential defaulters as possible, so that BNPL companies can minimize their financial losses from unpaid installments. As a result, Logistic Regression, with the highest Recall (0.66), is considered the best model.
+```{r metric-chart, fig.width=7, fig.height=6, fig.cap="Five evaluation metrics for the four models."}
+final_metrics %>%
+  pivot_longer(
+    cols      = c(Recall, AUC, `F1 Score`, Precision, Specificity),
+    names_to  = "Metric",
+    values_to = "Value"
+  ) %>%
+  mutate(
+    Model  = factor(Model, levels = final_metrics$Model),
+    Metric = factor(Metric, levels = c("Recall","F1 Score","AUC","Precision","Specificity"))
+  ) %>%
+  ggplot(aes(x=Model, y=Value, fill=Model)) +
+  geom_col(width=0.65, show.legend=FALSE) +
+  geom_text(aes(label=round(Value,3)), vjust=-0.3, size=2.3) +
+  facet_wrap(~Metric, ncol=3, scales="free_x") +
+  scale_fill_manual(values=model_colors) +
+  scale_y_continuous(limits=c(0,1.12)) +
+  scale_x_discrete(labels=function(x) str_wrap(x, width=10)) +
+  labs(x=NULL, y="Score") +
+  theme_minimal(base_size=9) +
+  theme(
+    strip.text    = element_text(face="bold", size=9),
+    axis.text.x   = element_text(size=6.5, lineheight=0.85),
+    panel.spacing = unit(0.8, "lines")
+  )
+```
+
+
+
+# 5.3 Confusion Matrix Results
+
+Tables 1 to 4 depict the confusion matrices of different predictive models. 
+
+Moreover, since capturing more potential defaulters is prioritised, the model with the fewest False Negatives is preferred. Table 5 presents the comparison of False Negatives (missed defaulters) by each model. The lowest number of False Negatives were classified by Logistic Regression (265), while the highest number were classified by Decision Tree (pruned). This supports that Logistic Regression is the best model for BNPL companies.
+
+```{r cm-function}
+make_cm <- function(e) {
+  cm <- e$cm$table
+  tp <- cm["Default",   "Default"]
+  fp <- cm["Default",   "No_Default"]
+  fn <- cm["No_Default","Default"]
+  tn <- cm["No_Default","No_Default"]
+  tibble(
+    ` `                     = c("Actual: Default", "Actual: No_Default"),
+    `Predicted: Default`    = c(tp, fp),
+    `Predicted: No_Default` = c(fn, tn)
+  ) %>%
+    kable(booktabs=TRUE, format=tbl_fmt,
+          caption=paste0("Confusion Matrix: ", e$name)) %>%
+    kable_styling(latex_options="HOLD_position", font_size=10, position="center")
+}
+```
+
+```{r cm-lr}
+make_cm(e_lr)
+```
+
+```{r cm-knn}
+make_cm(e_knn)
+```
+
+```{r cm-dt}
+make_cm(best_dt)
+```
+
+```{r cm-rf}
+make_cm(best_rf)
+```
+
+```{r fn-table}
+fn_tbl <- tibble(
+  Model = c(e_lr$name, e_knn$name, best_dt$name, best_rf$name),
+  `False Negatives (Missed Defaulters)` = as.integer(
+    c(get_fn(e_lr), get_fn(e_knn), get_fn(best_dt), get_fn(best_rf)))
+) %>% arrange(`False Negatives (Missed Defaulters)`)
+
+kable(fn_tbl, booktabs=TRUE, format=tbl_fmt,
+      caption="False Negatives by Model") %>%
+  kable_styling(latex_options="HOLD_position", font_size=10, position="center") %>%
+  row_spec(1, bold=TRUE)
+```
+
+
+
+# 5.4 Interpretability
+According to Table 6, both Logistic Regression and Decision Tree (pruned) are highly interpretable. Logistic Regression can be interpreted by a set of coefficients that influence the probability of default, whereas Decision Tree (pruned) can be interpreted by its human-readable decision rules. These 2 models are simple and visually intuitive for BNPL companies and their customers to understand.
+
+In contrast, Random Forest (All features) and k-NN are less interpretable. For Random Forest (All features), it is difficult to visualise hundreds of trees for interpretation. On the other hand, k-NN does not provide any rules or coefficients to explain its predictions, which makes it difficult for BNPL companies to explain why its customers are classified as a defaulter or not.
+
+
+```{r interp-table}
+interp_tbl <- final_metrics %>%
+  mutate(
+    Recall     = round(Recall, 4),
+    AUC        = round(AUC, 4),
+    `F1 Score` = round(`F1 Score`, 4),
+    Interpretability = case_when(
+      Model == "Logistic Regression" ~ "High: coefficients quantify each predictor's effect",
+      Model == "k-NN"                ~ "Low: no explicit model structure",
+      grepl("Decision Tree", Model)  ~ "High: decision rules are human-readable",
+      grepl("Random Forest", Model)  ~ "Low: aggregates hundreds of trees"
+    )
+  ) %>%
+  select(Model, Recall, AUC, `F1 Score`, Interpretability)
+
+kable(interp_tbl, booktabs=TRUE, format=tbl_fmt,
+      caption="Interpretability Summary") %>%
+  kable_styling(latex_options=c("HOLD_position","scale_down"),
+                font_size=9, position="center")
+```
+
+
+
+# 5.5 Best Model
+
+Firstly, Logistic Regression leads on 2 out of 5 performance metrics, which are Recall and F1 Score. Secondly, this model generates the lowest number of False Negatives (missed defaulters), which minimises the financial loss of BNPL companies. Thirdly, it is highly interpretable by BNPL companies and their customers, since it provides clear coefficients which shows how much each feature influences the probability of default. As a result, Logistic Regression is considered the best model.
