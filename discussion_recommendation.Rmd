@@ -1,0 +1,101 @@
+---
+title: "Discussion and Recommendation"
+output:
+  pdf_document:
+    toc: false
+  html_document:
+    toc: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo       = FALSE,
+  message    = FALSE,
+  warning    = FALSE,
+  fig.align  = "center",
+  fig.width  = 6.5,
+  fig.height = 4
+)
+```
+
+```{r libraries}
+library(tidymodels)
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+```
+
+Four models are built and compared for BNPL default prediction. Although Random Forest achieves the highest AUC, and Decision Tree has the best result on Specificity and Precision, these 2 models have relatively low Recall scores. In a BNPL context, low Recall will fail to identify the actual defaulters, leading to significant financial loss for BNPL companies. However, logistic regression achieves the highest Recall and F1 Score. Therefore, logistic regression is the best model we selected. A high recall score is meaningful and essential in the BNPL context, as missing defaulters is significantly more costly than incorrectly flagging low-risk customers.
+
+We evaluate Recall, Precision, and F1 on the test set using different thresholds. A customer is classified as Default if the predicted probability exceeds the threshold, with Default treated as the positive class.
+
+```{r threshold-table, echo=FALSE}
+event_lvl <- "second"
+
+if (!file.exists("train_df.rds") || !file.exists("test_df.rds")) {
+  stop("Missing train_df.rds or test_df.rds. Knit this file from the project root (where RDS files live).", call. = FALSE)
+}
+train_df <- readRDS("train_df.rds")
+test_df  <- readRDS("test_df.rds")
+if (!identical(names(train_df), names(test_df))) {
+  test_df <- test_df %>% select(all_of(names(train_df)))
+}
+lv <- levels(train_df$default_flag)
+if (!identical(lv, c("No_Default", "Default"))) {
+  stop("default_flag levels must be c('No_Default', 'Default') for this report.")
+}
+
+rec_l <- recipe(default_flag ~ ., data = train_df) %>%
+  step_normalize(all_numeric_predictors())
+lr_spec <- logistic_reg() %>% set_engine("glm") %>% set_mode("classification")
+wf_l <- workflow() %>% add_recipe(rec_l) %>% add_model(lr_spec)
+set.seed(42)
+fit_l <- fit(wf_l, data = train_df)
+test_aug <- augment(fit_l, test_df)
+
+thresholds <- c(0.30, 0.40, 0.50, 0.60)
+
+tbl_thr <- tibble(threshold = thresholds) %>%
+  mutate(
+    res = purrr::map(threshold, function(t) {
+      d <- test_aug %>%
+        mutate(
+          .pred_t = dplyr::if_else(
+            .pred_Default >= t,
+            factor("Default", levels = lv),
+            factor("No_Default", levels = lv)
+          )
+        )
+      tibble(
+        Recall    = sens(d, truth = default_flag, estimate = .pred_t, event_level = event_lvl)$.estimate,
+        Precision = precision(d, truth = default_flag, estimate = .pred_t, event_level = event_lvl)$.estimate,
+        F1        = f_meas(d, truth = default_flag, estimate = .pred_t, event_level = event_lvl, beta = 1)$.estimate
+      )
+    })
+  ) %>%
+  tidyr::unnest(res) %>%
+  mutate(
+    threshold = formatC(threshold, format = "f", digits = 2),
+    Recall    = formatC(Recall, format = "f", digits = 4),
+    Precision = formatC(Precision, format = "f", digits = 4),
+    F1        = formatC(F1, format = "f", digits = 4)
+  )
+
+kable(
+  tbl_thr,
+  booktabs = TRUE,
+  caption  = "Effect of classification threshold: Logistic regression (test set, positive class = Default)."
+) %>%
+  kable_styling(
+    latex_options = c("hold_position", "scale_down"),
+    font_size     = 9,
+    full_width    = FALSE
+) %>%
+  row_spec(1, bold = TRUE)
+```
+
+Based on threshold analysis, a classification threshold of **0.30** is selected for Logistic Regression. This threshold is chosen because it achieves the highest recall, improving the ability of model to capture high-risk customers, while maintaining a good performance on precision and F1 Score.
+
+From the business perspective, the Logistic Regression model can provide some clear and actionable key insights for BNPL management. Firstly, we find that customers with poor repayment behaviour (like frequent repayment delays or missed payments), lower credit scores, greater purchase amount, are more likely to default. And these customers should therefore get stricter monitoring and credit control from the platform. Additionally, some demographic and behavioural factors have limited influence on default risk. Customers from India and purchases in the Home category show a slight association with higher default risk. But these effects are much weaker compared to core financial indicators. On the other hand, customers with strong credit scores and stable repayment histories are generally more reliable and less likely to default, and they represent the low-risk segment of the platform.
+
+To reduce default risk and improve credit performance, we make the following suggestions for the BNPL business-related companies. Firstly, stricter approval rules or lower credit limits should be applied to the customers with weak repayment behaviour. Secondly, the credit score should be employed as the primary filtering criterion in the approval process, placing low-score customers under tighter lending conditions. Thirdly, additional checks should be performed on large purchase transactions, as it relates to the higher probability of default risk.
