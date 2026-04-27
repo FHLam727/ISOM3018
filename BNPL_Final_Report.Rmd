@@ -1,0 +1,1074 @@
+---
+title: "BNPL Credit Risk — Predictive Modelling"
+subtitle: "ISOM3018 Course Project"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 2
+    number_sections: true
+    latex_engine: xelatex
+    fig_crop: false
+header-includes:
+  - \usepackage{float}
+  - \floatplacement{figure}{H}
+  - \usepackage{booktabs}
+  - \usepackage{xcolor}
+  - \usepackage{sectsty}
+  - \allsectionsfont{\centering}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo       = FALSE,
+  message    = FALSE,
+  warning    = FALSE,
+  fig.align  = "center",
+  fig.pos    = "H",
+  out.extra  = ""
+)
+```
+
+```{r libraries}
+# ── All libraries in one place ─────────────────────────────────────────────────
+library(tidyverse)
+library(scales)
+library(knitr)
+library(kableExtra)
+library(lubridate)
+library(corrplot)
+library(tidymodels)
+library(caret)
+library(pROC)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+```
+
+```{r load-data}
+# ── Load raw data (EDA) ────────────────────────────────────────────────────────
+df <- read_csv("Buy_Now_Pay_Later_BNPL_CreditRisk_Dataset.csv") %>%
+  mutate(
+    default_flag      = factor(default_flag, levels = c(0, 1),
+                               labels = c("No Default", "Default")),
+    employment_type   = factor(employment_type),
+    product_category  = factor(product_category),
+    location          = factor(location),
+    bnpl_installments = factor(bnpl_installments),
+    transaction_date  = mdy(transaction_date)
+  )
+
+# ── Load preprocessed train / test splits (Modelling) ─────────────────────────
+train_df <- readRDS("train_df.rds")
+test_df  <- readRDS("test_df.rds")
+
+# Align column order between splits
+if (!identical(names(train_df), names(test_df))) {
+  test_df <- test_df %>% select(all_of(names(train_df)))
+}
+
+# Ensure factor levels are consistent for caret / pROC
+train_df$default_flag <- factor(train_df$default_flag,
+                                levels = c("No_Default", "Default"))
+test_df$default_flag  <- factor(test_df$default_flag,
+                                levels = c("No_Default", "Default"))
+validation_y <- test_df$default_flag
+pos          <- "Default"
+```
+
+\newpage
+
+# Introduction
+
+"Buy Now, Pay Later" (BNPL) is a form of point of sale (POS) financing, which means that credits originate directly at the time of purchase (Peterdy, 2023). Unlike traditional methods, customers are not required to secure credit in advance, such as applying for a credit card and waiting for bank approval before making credit purchases.
+
+Moreover, BNPL is a short-term loan that allows customers to make purchases and pay for them in small installments over time. This loan is more affordable than other types of financing alternatives, since no interest is required if payments are made on time (Udavant, 2025).
+
+Several major fintech companies operate in this area, such as PayPal, AfterPay, Affirm, Klarna, and Sezzle. These companies act as intermediaries between customers and merchants when a transaction is made. However, if customers are unable to complete their installments, these companies will bear the financial risk. Therefore, they have to analyse customers' creditworthiness before customers are authorised to access this service. For example, they can analyse customers' purchase history, age, and repayment behaviour, to determine whether customers have a reliable background and the ability to pay their installments on time. However, it is inefficient and ineffective to manually check each customer's background to determine their financial reliability.
+
+Therefore, this project aims to develop a predictive model that assists BNPL companies in effectively assessing the creditworthiness of customers. This project analyses key features such as their demographic backgrounds and financial behaviours to predict the likelihood of customers' repayment defaults. This model allows BNPL companies to optimize the approval process of reliable customers instantly, and minimise financial loss from high-risk and untrustworthy customers.
+
+\newpage
+
+# Methodology
+
+To build up the predictive models, the "Buy Now Pay Later BNPL Credit Risk" dataset was employed from Kaggle. There are 10,345 transactions (rows) and 17 features (columns) in this dataset, in which some of the features are viewed as irrelevant and are removed from building models. The target variable is the **default risk of customers**, with 1 being labelled as "**Default**", and 0 labelled as "**No Default**".
+
+There are 4 predictive models built using this dataset to determine the **default risk of customers**:
+
+1. **KNN**: 
+This model identifies the default risk of new customers based on the similarity of their background (e.g., age and repayment behaviour) with the historical data of existing customers.
+For example, a new customer aged 40 always pays on time. The KNN model identifies the “K” number of existing customers in the dataset who have similar backgrounds as the new customer, which are known as neighbours. 
+
+- Case 1:
+If the majority of neighbours repay on time, the new customer will be classified as a reliable customer who repays on time. The system will then approve this BNPL transaction.
+
+- Case 2:
+If most of them often delay repayment, the new customer will be classified as a high-risk customer who defaults on payment. The system will not approve this BNPL transaction in order to minimise financial loss.
+
+2. **Logistic Regression**: 
+This model determines the probability of a new customer who defaults payment (labelled as 1) or pays on time (labelled as 0) based on their background. This model provides clear coefficients for each feature, such that it is easy for BNPL companies to interpret and determine which features have the most significant impact on default risk.
+
+Also, a probability threshold ranging from 0 to 1 is defined for classification, and this can be adjusted manually based on the BNPL companies’ risk appetite. The default threshold is 0.5.
+
+- Case 1:
+If the BNPL companies are more conservative, they should decrease the threshold. Therefore, they can capture more potential defaults and decline these transactions. This can minimise their financial loss from potential unpaid installments. 
+However, the transactions of some reliable customers, who might look risky, might be declined (higher False Positives), which limits the profitability of these companies.
+
+- Case 2:
+If the BNPL companies focus on market growth, they should increase the threshold. Therefore, the approval process is more lenient, and more customers can enjoy this service. 
+However, some high-risk customers might be approved in this case (higher False Negatives), so the potential financial loss from default payments is higher.
+
+3. **Decision Tree**: 
+This is a tree-like model of decisions and their possible consequences, which provides a clear visualisation of how a credit decision is reached. The BNPL companies can look at the tree and identify which paths lead to a default payment classification clearly. 
+For example, if customers are below 40 years old, and their repayment delay days are more than 15 days, they will be classified as defaulting on payments.
+
+4. **Random Forest**:
+This model makes use of hundreds of decision trees to make better decisions, with each tree trained on a random subset of data and a selection of features. The prediction results of all trees are combined to evaluate if a new customer defaults on payment, and the final result is determined by the majority rule.
+
+For example, according to Table 1, 2 out of 3 decision trees predict that this new customer will default on his payment. Therefore, the final classification of that customer is "**Defaulted**".
+
+| Decision Trees | Feature | Prediction Result |
+|---|---|---|
+| 1 | Age | Defaulted |
+| 2 | Repayment delay days | Defaulted |
+| 3 | Credit score | Paid on time |
+
+Table 1. An Example of Final Prediction Result Using Random Forest
+
+These models are compared using several performance metrics. The model that achieves the highest score across these performance metrics is considered the best predictive model.
+
+1. **Precision**:
+This metric defines the number of correctly classified as “**Default**” or “**No Default**” customers divided by the total number of customers that are classified as “**Default**” or “**No Default**”.
+High precision means that when the model predicts that a customer will default on payment, it is highly likely to be correct. This ensures that BNPL companies do not decline reliable customers.
+
+2. **Recall**:
+This metric defines the number of correctly classified as “**Default**” or “**No Default**” customers divided by the total number of actual “**Default**” or “**No Default**” customers.
+A high recall means that the model can identify the majority of customers who default on their payments. This ensures that BNPL companies can minimise their financial losses from unpaid installments.
+
+3. **F1 Score**: 
+F1 Score is a comprehensive and balanced measure that combines and balances the tradeoff between precision and recall metrics at a specific threshold.
+A high F1 Score means that the model has achieved a good balance between catching as many default customers as possible (Recall) and ensuring that the customers whom it classifies as defaulting on payments are correctly predicted (Precision). BNPL companies can use this metric to balance the tradeoff between their profitability from growth of their customer base, with the need to minimise financial loss from unpaid installments.
+
+4. **AUC**:
+AUC stands for Area Under the ROC Curve, which measures the model’s ability to predict “**Default**” or “**No Default**” accurately through its True Positive Rate and False Positive Rate across all possible thresholds.
+A high AUC means that the model has a strong overall ability to predict whether customers will default on their payments or they will pay on time. This indicates that the model is reliable for adoption by BNPL companies.
+
+5. **Specificity**:
+Specificity measures the proportion of actual non-defaulting customers that are correctly identified as "No Default" by the model. 
+A high specificity means that the models do not incorrectly classify reliable customers as defaulters. This ensures that BNPL companies do not lose business opportunities and profitability by declining reliable customers from the service.
+
+
+\newpage
+
+# Exploratory Data Analysis
+
+## Summary of Key EDA Findings
+
+- Overall default rate is **39.1%**, implying a moderate data imbalance, which should be addressed by applying SMOTE.
+- **Unemployed and Student users** have the highest default rates (~49%), nearly double that of Self-Employed users (~26%).
+- Users with **lower credit scores** (300--550 range) have higher default probability.
+- The default users have more **missed payments and repayment delays**.
+- **Higher debt-to-income ratio** leads to higher default probability.
+- **`monthly_income`** and **`credit_score`** exhibit a very high correlation (0.96), indicating multicollinearity; therefore, **`monthly_income`** is removed in the preprocessing stage.
+- **`customer_segment`** and **`risk_score`** are removed in the preprocessing stage due to potential data leakage concerns.
+
+## Dataset Overview
+
+```{r dataset-overview}
+overview <- tibble(
+  Item  = c("Total Records", "Total Variables", "Defaulted Users",
+            "Non-Defaulted Users", "Default Rate", "Missing Values"),
+  Value = c(
+    format(nrow(df), big.mark = ","),
+    ncol(df),
+    format(sum(df$default_flag == "Default"), big.mark = ","),
+    format(sum(df$default_flag == "No Default"), big.mark = ","),
+    paste0(round(mean(df$default_flag == "Default") * 100, 1), "%"),
+    "None"
+  )
+)
+
+kable(overview, caption = "Dataset Overview",
+      booktabs = TRUE, align = c("l", "r")) %>%
+  kable_styling(latex_options = c("hold_position"), full_width = FALSE)
+```
+
+**Interpretation:** The dataset contains 10,345 transactions across 17 variables. Overall, 39.1% of users defaulted on their repayments.
+
+## Descriptive Statistics of Numerical Variables
+
+```{r descriptive-stats}
+num_vars <- df %>%
+  select(age, monthly_income, credit_score, purchase_amount,
+         repayment_delay_days, missed_payments,
+         debt_to_income_ratio, risk_score, app_usage_frequency)
+
+desc_stats <- num_vars %>%
+  summarise(across(everything(), list(
+    Mean   = ~round(mean(.), 2),
+    Median = ~round(median(.), 2),
+    SD     = ~round(sd(.), 2),
+    Min    = ~round(min(.), 2),
+    Max    = ~round(max(.), 2)
+  ))) %>%
+  pivot_longer(everything(),
+               names_to  = c("Variable", "Statistic"),
+               names_sep = "_(?=[^_]+$)") %>%
+  pivot_wider(names_from = Statistic, values_from = value)
+
+kable(desc_stats,
+      caption = "Descriptive Statistics of Numerical Variables",
+      booktabs = TRUE, align = c("l", rep("r", 5))) %>%
+  kable_styling(latex_options = c("hold_position", "scale_down"), font_size = 9)
+```
+
+**Interpretation:**
+
+- **Monthly Income** ranges widely, with extreme high values identified as outliers.
+- **Credit Score** ranges from 300 to 850, with a median of 403, suggesting many users have low creditworthiness.
+- **Repayment Delay Days** averages 8.7 days, with some users delaying up to 33 days. **Missed Payments** ranges up to 7, and **Debt-to-Income Ratio** reaches 0.72. The extreme values in these three variables are removed in the preprocessing stage.
+## Target Variable Distribution
+
+```{r target-distribution, fig.width=4, fig.height=3}
+df %>%
+  count(default_flag) %>%
+  mutate(pct   = n / sum(n),
+         label = paste0(comma(n), "\n(", percent(pct, accuracy = 0.1), ")")) %>%
+  ggplot(aes(x = default_flag, y = n, fill = default_flag)) +
+  geom_col(width = 0.5, show.legend = FALSE) +
+  geom_text(aes(label = label), vjust = -0.3, size = 3.5, fontface = "bold") +
+  scale_fill_manual(values = c("No Default" = "#2196F3", "Default" = "#F44336")) +
+  scale_y_continuous(labels = comma, limits = c(0, 7500)) +
+  labs(title = "Distribution of Default Status",
+       x = "Default Status", y = "Number of Users") +
+  theme_minimal(base_size = 11) +
+  theme(plot.title = element_text(face = "bold", hjust = 0.5))
+```
+
+**Interpretation:** The dataset has a moderate data imbalance problem. 61% of users did not default, while 39% did. SMOTE will be applied in the data preprocessing stage to deal with this problem.
+
+## Default Rate by Employment Type
+
+```{r employment-default, fig.width=4.5, fig.height=3}
+df %>%
+  group_by(employment_type) %>%
+  summarise(total   = n(),
+            default = sum(default_flag == "Default"),
+            rate    = default / total) %>%
+  ggplot(aes(x = reorder(employment_type, -rate), y = rate, fill = employment_type)) +
+  geom_col(width = 0.5, show.legend = FALSE) +
+  geom_text(aes(label = percent(rate, accuracy = 0.1)),
+            vjust = -0.4, fontface = "bold", size = 3.5) +
+  scale_y_continuous(labels = percent, limits = c(0, 0.6)) +
+  scale_fill_brewer(palette = "Set2") +
+  labs(title = "Default Rate by Employment Type",
+       x = "Employment Type", y = "Default Rate") +
+  theme_minimal(base_size = 11) +
+  theme(plot.title = element_text(face = "bold", hjust = 0.5))
+```
+
+**Interpretation:** Unemployed users (48.7%) and Students (48.6%) have nearly double the default rate of Self-Employed users (26.2%) and significantly higher than Salaried workers (32.7%). This is because users with unstable or no income face greater difficulty in paying installments punctually.
+
+## Credit Score Distribution by Default Status
+
+```{r credit-score-pyramid, fig.width=5, fig.height=3.5}
+pyramid_data <- df %>%
+  mutate(score_band = cut(credit_score,
+                          breaks = seq(300, 850, by = 50),
+                          include.lowest = TRUE, right = FALSE)) %>%
+  count(score_band, default_flag) %>%
+  mutate(n_plot = ifelse(default_flag == "No Default", -n, n))
+
+x_max <- max(abs(pyramid_data$n_plot), na.rm = TRUE) * 1.05
+
+ggplot(pyramid_data, aes(x = n_plot, y = score_band, fill = default_flag)) +
+  geom_col(width = 0.7) +
+  geom_vline(xintercept = 0, colour = "grey30", linewidth = 0.5) +
+  scale_x_continuous(labels = function(x) comma(abs(x)),
+                     breaks = seq(-1200, 1200, by = 400),
+                     limits = c(-x_max, x_max)) +
+  scale_fill_manual(values = c("No Default" = "#2196F3", "Default" = "#F44336")) +
+  labs(title = "Credit Score Distribution by Default Status",
+       x = "Number of Users", y = "Credit Score Band") +
+  annotate("text", x = -x_max * 0.55, y = 11.7,
+           label = "No Default", colour = "#2196F3", fontface = "bold", size = 3.5) +
+  annotate("text", x =  x_max * 0.55, y = 11.7,
+           label = "Default",    colour = "#F44336", fontface = "bold", size = 3.5) +
+  coord_cartesian(clip = "off") +
+  theme_minimal(base_size = 11) +
+  theme(plot.title      = element_text(face = "bold", hjust = 0.5),
+        plot.margin     = ggplot2::margin(t = 20, r = 10, b = 10, l = 10),
+        legend.position = "none")
+```
+
+**Interpretation:** Users who defaulted tend to have a low credit score (300–550), while non-defaulters show a wider and slightly higher distribution. Lower credit scores are associated with higher default risk.
+
+## Missed Payments & Repayment Delay vs. Default
+
+```{r missed-payments, fig.width=4, fig.height=3}
+ggplot(df, aes(x = default_flag, y = missed_payments, fill = default_flag)) +
+  geom_boxplot(show.legend = FALSE, outlier.alpha = 0.3) +
+  scale_fill_manual(values = c("No Default" = "#2196F3", "Default" = "#F44336")) +
+  labs(title = "Missed Payments by Default Status",
+       x = "Default Status", y = "Number of Missed Payments") +
+  theme_minimal(base_size = 11) +
+  theme(plot.title = element_text(face = "bold", hjust = 0.5))
+```
+
+**Interpretation:** Defaulters have a wider distribution and a higher upper quartile of missed payments compared to non-defaulters. Users who repeatedly miss payments (e.g., 2 or more) are more likely to default.
+
+```{r repayment-delay, fig.width=4, fig.height=3}
+ggplot(df, aes(x = default_flag, y = repayment_delay_days, fill = default_flag)) +
+  geom_boxplot(show.legend = FALSE, outlier.alpha = 0.3) +
+  scale_fill_manual(values = c("No Default" = "#2196F3", "Default" = "#F44336")) +
+  labs(title = "Repayment Delay (Days) by Default Status",
+       x = "Default Status", y = "Delay in Days") +
+  theme_minimal(base_size = 11) +
+  theme(plot.title = element_text(face = "bold", hjust = 0.5))
+```
+
+**Interpretation:** Defaulters also tend to delay repayments significantly longer than non-defaulters. The higher median repayment delay days among defaulters suggests that late payment behaviour is a good predictor of default.
+
+## Debt-to-Income Ratio vs. Default
+
+```{r dti-default, fig.width=4.5, fig.height=3}
+ggplot(df, aes(x = default_flag, y = debt_to_income_ratio, fill = default_flag)) +
+  geom_boxplot(show.legend = FALSE, outlier.alpha = 0.3) +
+  scale_fill_manual(values = c("No Default" = "#2196F3", "Default" = "#F44336")) +
+  scale_y_continuous(labels = percent) +
+  labs(title = "Debt-to-Income Ratio by Default Status",
+       x = "Default Status", y = "Debt-to-Income Ratio") +
+  theme_minimal(base_size = 11) +
+  theme(plot.title = element_text(face = "bold", hjust = 0.5))
+```
+
+**Interpretation:** Defaulters have a significantly higher median debt-to-income ratio. Users spending a larger proportion of their income on debt repayments are correlated with higher financial risk.
+
+## Default Rate by Product Category
+
+```{r product-default, fig.width=5, fig.height=3}
+df %>%
+  group_by(product_category) %>%
+  summarise(total   = n(),
+            default = sum(default_flag == "Default"),
+            rate    = default / total) %>%
+  ggplot(aes(x = reorder(product_category, -rate), y = rate, fill = product_category)) +
+  geom_col(width = 0.5, show.legend = FALSE) +
+  geom_text(aes(label = percent(rate, accuracy = 0.1)),
+            vjust = -0.4, fontface = "bold", size = 3.5) +
+  scale_y_continuous(labels = percent, limits = c(0, 0.55)) +
+  scale_fill_brewer(palette = "Pastel1") +
+  labs(title = "Default Rate by Product Category",
+       x = "Product Category", y = "Default Rate") +
+  theme_minimal(base_size = 11) +
+  theme(plot.title = element_text(face = "bold", hjust = 0.5))
+```
+
+**Interpretation:** Default rates across product categories are relatively similar, ranging from 37.7% (Sports) to 41.0% (Fashion). While Fashion purchases show a slightly higher default rate, the differences are not dramatic.
+
+## Correlation Heatmap of Numerical Variables
+
+```{r correlation-heatmap, fig.width=5.5, fig.height=4}
+cor_data <- df %>%
+  select(age, monthly_income, credit_score, purchase_amount,
+         repayment_delay_days, missed_payments,
+         debt_to_income_ratio, risk_score, app_usage_frequency) %>%
+  cor()
+
+corrplot(cor_data,
+         method      = "color",
+         type        = "upper",
+         addCoef.col = "black",
+         tl.col      = "black",
+         tl.srt      = 45,
+         number.cex  = 0.6,
+         tl.cex      = 0.7,
+         col         = colorRampPalette(c("#F44336", "white", "#2196F3"))(200),
+         title       = "Correlation Matrix",
+         mar         = c(0, 0, 1, 0))
+```
+
+**Interpretation:** The correlation matrix reveals several notable relationships.
+
+- **`repayment_delay_days`** is positively correlated with **`missed_payments`**, meaning that the longer a user delays a payment, the more likely the transaction will be flagged as a missed payment. 
+- **`credit_score`** is negatively correlated with **`debt_to_income_ratio`**, suggesting that users with heavier debt burdens are perceived as higher risk. 
+- Notably, **`monthly_income`** and **`credit_score`** have an extremely high correlation, indicating severe multicollinearity; **`monthly_income`** is therefore removed from modelling. 
+- Furthermore, **`risk_score`** shows abnormally strong correlations with multiple variables (e.g., r = -0.89 with **`credit_score`**), which raises potential data leakage concerns and should be removed.
+
+
+\newpage
+
+# Data Preprocessing
+
+The raw dataset is cleaned by removing five columns before modeling. The `user_id` and `transaction_date` fields are removed because they have no predictive value. Furthermore, `customer_segment` and `risk_score` are excluded from modeling because of potential data leakage, since these features are closely correlated with the target variable; keeping these variables would allow the model to observe the outcome it is intended to predict, leading to inflated performance metrics. Additionally, `monthly_income` is excluded because it exhibits high correlation with `credit_score`, which may cause multicollinearity and affect model performance.
+
+To address extreme values identified during EDA, outliers in three numerical variables are removed using the 99th percentile threshold. Observations where `debt_to_income_ratio`, `missed_payments`, or `repayment_delay_days` exceed their respective 99th percentile are excluded from the dataset.
+
+After column and outlier removal, the categorical variables are cast to factors. The target variable is encoded as a binary factor ("**Default**" / "**No\_Default**"), while other categorical predictors (`employment_type`, `product_category`, `location`, `bnpl_installments`) are cast to factors. The cleaned dataset is split into training and test datasets using an 80/20 ratio. However, the data imbalance problem is observed in the dataset, where default events are less frequent than non-default events. SMOTE (Synthetic Minority Over-Sampling Technique) is applied in the training dataset to balance the two classes. Finally, the categorical variables are converted into dummy variables using dummy encoding, where one category per variable is treated as the reference level to avoid multicollinearity.
+
+\newpage
+
+# Modeling
+
+```{r eval-helper}
+# ── Shared evaluation helper used in Section 6 ────────────────────────────────
+eval_clf <- function(truth, pred_class, pred_prob, name) {
+  truth      <- factor(truth,      levels = c("No_Default", "Default"))
+  pred_class <- factor(pred_class, levels = c("No_Default", "Default"))
+  cm  <- confusionMatrix(pred_class, truth, positive = pos, mode = "everything")
+  roc_obj <- roc(truth, pred_prob,
+                 levels = c("No_Default", "Default"),
+                 direction = "<", quiet = TRUE)
+  list(
+    name = name, cm = cm, roc = roc_obj,
+    metrics = tibble(
+      Model       = name,
+      Recall      = as.numeric(cm$byClass["Sensitivity"]),
+      Specificity = as.numeric(cm$byClass["Specificity"]),
+      Precision   = as.numeric(cm$byClass["Precision"]),
+      `F1 Score`  = as.numeric(cm$byClass["F1"]),
+      AUC         = as.numeric(auc(roc_obj))
+    )
+  )
+}
+```
+
+## Logistic Regression
+
+The logistic regression model estimates the log-odds of default using the linear combination of input features. It provides an interpretation of how each variable influences risk. To allow comparability across different independent variables, all numeric variables are standardized with a mean of 0 and a standard deviation of 1.
+
+```{r logistic-fit}
+rec_logistic <- recipe(default_flag ~ ., data = train_df) %>%
+  step_normalize(all_numeric_predictors())
+
+lr_spec <- logistic_reg() %>%
+  set_engine("glm") %>%
+  set_mode("classification")
+
+wf_logistic <- workflow() %>%
+  add_recipe(rec_logistic) %>%
+  add_model(lr_spec)
+
+set.seed(42)
+fit_logistic <- fit(wf_logistic, data = train_df)
+```
+
+```{r logistic-coef-table}
+coef_tbl <- tidy(fit_logistic) %>%
+  filter(term != "(Intercept)") %>%
+  arrange(desc(abs(estimate))) %>%
+  mutate(
+    estimate  = round(estimate, 4),
+    std.error = round(std.error, 4),
+    p.value   = round(p.value, 4)
+  ) %>%
+  rename(
+    Predictor    = term,
+    Coefficient  = estimate,
+    `Std. Error` = std.error,
+    `p-value`    = p.value
+  ) %>%
+  select(Predictor, Coefficient, `Std. Error`, `p-value`)
+
+kable(coef_tbl, booktabs = TRUE,
+      caption = "Logistic Regression Coefficients") %>%
+  kable_styling(latex_options = c("hold_position", "scale_down"), font_size = 9)
+```
+
+With 95% confidence level, `repayment_delay_days`, `purchase_amount`, and `missed_payments` have positive coefficients, relating to higher default risk. `credit_score`, `debt_to_income_ratio`, `employment_type_Unemployed`, and `employment_type_Student` have negative coefficients, indicating lower default risk. Among them, `credit_score` and `repayment_delay_days` have the largest impact.
+
+```{r logistic-predictions}
+# Save predictions for use in Section 6
+test_aug_lr  <- augment(fit_logistic, test_df)
+pred_cols_lr <- names(test_aug_lr)[startsWith(names(test_aug_lr), ".pred_")]
+
+test_aug_lr %>%
+  mutate(row_id = row_number(), .before = 1) %>%
+  select(row_id, default_flag, all_of(pred_cols_lr)) %>%
+  write_csv("predictions_logistic_test.csv")
+```
+
+## k-Nearest Neighbors (k-NN)
+
+k-NN classifies each customer based on the majority default outcome among their *k* nearest neighbors. All numeric predictors are standardized before computing distances. The optimal *k* is selected by 5-fold cross-validation on the training data to maximize the ROC AUC. *k* values from 3 to 101 (odd only) are evaluated to reduce the risk of ties.
+
+```{r knn-tune}
+rec_knn <- recipe(default_flag ~ ., data = train_df) %>%
+  step_normalize(all_numeric_predictors())
+
+knn_spec <- nearest_neighbor(neighbors = tune()) %>%
+  set_engine("kknn") %>%
+  set_mode("classification")
+
+wf_knn <- workflow() %>%
+  add_recipe(rec_knn) %>%
+  add_model(knn_spec)
+
+k_grid <- tibble(neighbors = seq(3, 101, by = 2))
+
+set.seed(42)
+folds <- vfold_cv(train_df, v = 5, strata = default_flag)
+
+set.seed(42)
+tune_res <- tune_grid(
+  wf_knn,
+  resamples = folds,
+  grid      = k_grid,
+  metrics   = metric_set(roc_auc, accuracy),
+  control   = control_grid(save_pred = FALSE, verbose = FALSE)
+)
+
+best_k <- tune_res %>% select_best(metric = "roc_auc")
+
+cv_raw <- tune_res %>%
+  collect_metrics() %>%
+  filter(.metric == "roc_auc")
+
+estimate_col <- if ("mean" %in% names(cv_raw)) "mean" else ".estimate"
+
+cv_k_auc <- cv_raw %>%
+  mutate(estimate_metric = .data[[estimate_col]]) %>%
+  group_by(neighbors) %>%
+  summarise(mean_roc_auc = mean(estimate_metric, na.rm = TRUE), .groups = "drop")
+```
+
+```{r knn-bestk-table}
+kable(
+  tibble(`Selected k`          = best_k$neighbors,
+         `Selection Criterion` = "Max CV ROC AUC",
+         `CV Folds`            = 5,
+         `k Range Searched`    = "3 to 101 (odd values only)"),
+  booktabs = TRUE,
+  caption  = "Optimal k Selected by Cross-validation"
+) %>%
+  kable_styling(latex_options = c("hold_position"), font_size = 10)
+```
+
+```{r knn-cv-plot, fig.width=5.5, fig.height=3.5, fig.cap="Cross-validated ROC AUC by k (training data only)."}
+ggplot(cv_k_auc, aes(x = neighbors, y = mean_roc_auc)) +
+  geom_line(linewidth = 0.7, color = "#2E7D32") +
+  geom_point(size = 1.5, color = "#2E7D32") +
+  geom_vline(xintercept = best_k$neighbors, linetype = "dashed", color = "grey35") +
+  annotate("text",
+           x     = best_k$neighbors + 2,
+           y     = min(cv_k_auc$mean_roc_auc),
+           label = paste0("k = ", best_k$neighbors),
+           hjust = 0, size = 3.2, color = "grey35") +
+  labs(x = "k (Number of Neighbors)", y = "Mean CV ROC AUC") +
+  theme_minimal(base_size = 11)
+```
+
+The ROC AUC peaks at k = `r best_k$neighbors`, so *k* is set to `r best_k$neighbors`.
+
+```{r knn-final-fit}
+wf_knn_final <- finalize_workflow(wf_knn, best_k)
+set.seed(42)
+fit_knn <- fit(wf_knn_final, data = train_df)
+```
+
+```{r knn-predictions}
+test_aug_knn  <- augment(fit_knn, test_df)
+pred_cols_knn <- names(test_aug_knn)[startsWith(names(test_aug_knn), ".pred_")]
+
+test_aug_knn %>%
+  mutate(row_id = row_number(), .before = 1) %>%
+  select(row_id, default_flag, all_of(pred_cols_knn)) %>%
+  write_csv("predictions_knn_test.csv")
+```
+
+## Decision Tree
+
+Decision tree models are being built using rpart to predict the target variable (default_flag). To examine model complexity and potential overfitting issues, three versions of the decision tree are constructed: a default tree, a fully grown tree, and a pruned tree.
+
+Default Tree:
+The default decision tree is built using standard rpart parameters, acting as a baseline model.
+
+Full Tree:
+A fully grown tree is built by setting the complexity parameter (cp = 0) and allowing minimal restrictions on splitting, capturing all possible patterns in the training data.
+
+Pruned Tree:
+In order to solve possible overfitting issues, the full tree is pruned using the optimal complexity parameter (cp) selected by the minimum cross-validated error (xerror). 
+
+```{r dt-fit}
+set.seed(42)
+dt_default <- rpart(default_flag ~ ., data = train_df, method = "class")
+
+dt_full <- rpart(default_flag ~ ., data = train_df, method = "class",
+  control = rpart.control(cp = 0, minsplit = 2, minbucket = 1, maxdepth = 30, xval = 10))
+
+best_cp  <- dt_full$cptable[which.min(dt_full$cptable[, "xerror"]), "CP"]
+dt_pruned <- prune(dt_full, cp = best_cp)
+```
+
+```{r dt-complexity}
+count_leaves <- function(fit) sum(fit$frame$var == "<leaf>")
+count_splits <- function(fit) sum(fit$frame$var != "<leaf>")
+count_nodes  <- function(fit) nrow(fit$frame)
+
+leaf_counts <- data.frame(
+  Model  = c("Decision Tree (Default)", "Decision Tree (Full)", "Decision Tree (Pruned)"),
+  Leaves = c(count_leaves(dt_default), count_leaves(dt_full), count_leaves(dt_pruned)),
+  Splits = c(count_splits(dt_default), count_splits(dt_full), count_splits(dt_pruned)),
+  Nodes  = c(count_nodes(dt_default),  count_nodes(dt_full),  count_nodes(dt_pruned))
+)
+
+kable(leaf_counts, caption = "Decision Tree Complexity (Leaf Count)",
+      booktabs = TRUE) %>%
+  kable_styling(latex_options = "hold_position")
+```
+
+According to the tree complexity results above, the full tree is too deep for visualization and is ineffective to show. Therefore, only the default and pruned tree are being visualized. The visualization shows which combination of the factors will be classified as default or not.
+
+```{r dt-plot-default, fig.width=8, fig.height=6, fig.cap="Decision Tree (Default)."}
+rpart.plot(dt_default,
+           main          = "Decision Tree (Default)",
+           fallen.leaves = TRUE,
+           compress      = FALSE,
+           extra         = 0,
+           varlen        = 0,
+           faclen        = 0,
+           digits        = 2,
+           cex           = 0.7,
+           tweak         = 0.9)
+```
+
+\newpage
+
+```{r dt-plot-pruned, fig.width=20, fig.height=18, out.width="\\textwidth", out.height="\\textheight", fig.cap="Decision Tree (Pruned)."}
+rpart.plot(dt_pruned,
+           main          = "Decision Tree (Pruned)",
+           fallen.leaves = FALSE,
+           uniform       = TRUE,
+           compress      = FALSE,
+           extra         = 0,
+           varlen        = 0,
+           faclen        = 0,
+           digits        = 2,
+           cex           = 0.6,
+           tweak         = 0.9)
+```
+
+\newpage
+
+### Decision Tree Model Performance
+
+```{r dt-performance}
+dt_results <- bind_rows(
+  eval_clf(validation_y,
+           predict(dt_default, test_df, type = "class"),
+           predict(dt_default, test_df, type = "prob")[, pos],
+           "Decision Tree (Default)")$metrics,
+  eval_clf(validation_y,
+           predict(dt_full, test_df, type = "class"),
+           predict(dt_full, test_df, type = "prob")[, pos],
+           "Decision Tree (Full)")$metrics,
+  eval_clf(validation_y,
+           predict(dt_pruned, test_df, type = "class"),
+           predict(dt_pruned, test_df, type = "prob")[, pos],
+           "Decision Tree (Pruned)")$metrics
+)
+
+kable(dt_results, booktabs = TRUE,
+      caption = "Decision Tree Performance (Test Set)") %>%
+  kable_styling(latex_options = c("hold_position", "scale_down"), font_size = 9)
+```
+
+The pruned decision tree provides the best overall performance by having the highest AUC. The default tree shows higher accuracy but performs poorly in identifying default cases due to low sensitivity, while the full tree improves sensitivity but has overfitting problems and weaker overall performance.
+
+## Random Forest
+
+Random Forest Models are built to improve predictive performance and reduce overfitting compared to decision trees. Three versions are built: a default model, a tuned model with optimized mtry based on out-of-bag (OOB) error.
+
+```{r rf-fit}
+set.seed(42)
+rf_default <- randomForest(default_flag ~ ., data = train_df, importance = TRUE)
+
+tx <- model.matrix(default_flag ~ ., data = train_df)[, -1, drop = FALSE]
+ty <- train_df$default_flag
+set.seed(42)
+sink(tempfile())
+tuned_rf <- tuneRF(tx, ty, ntreeTry = 500, stepFactor = 1.5,
+                   improve = 0.01, trace = FALSE, plot = FALSE)
+sink()
+best_mtry <- tuned_rf[which.min(tuned_rf[, "OOBError"]), "mtry"]
+
+rf_tuned <- randomForest(default_flag ~ ., data = train_df,
+                         ntree = 500, mtry = best_mtry, importance = TRUE)
+rf_all   <- randomForest(default_flag ~ ., data = train_df,
+                         ntree = 500, mtry = ncol(tx), importance = TRUE)
+```
+
+### Random Forest Model Performance
+
+```{r rf-performance}
+e_rf_def   <- eval_clf(validation_y, predict(rf_default, test_df),
+                       predict(rf_default, test_df, type = "prob")[, pos],
+                       "Random Forest (Default)")
+e_rf_tuned <- eval_clf(validation_y, predict(rf_tuned, test_df),
+                       predict(rf_tuned, test_df, type = "prob")[, pos],
+                       "Random Forest (Tuned mtry)")
+e_rf_all   <- eval_clf(validation_y, predict(rf_all, test_df),
+                       predict(rf_all, test_df, type = "prob")[, pos],
+                       "Random Forest (All features)")
+
+rf_results <- bind_rows(
+  e_rf_def$metrics,
+  e_rf_tuned$metrics,
+  e_rf_all$metrics
+)
+
+kable(rf_results, booktabs = TRUE,
+      caption = "Random Forest Performance (Test Set)") %>%
+  kable_styling(latex_options = c("hold_position", "scale_down"), font_size = 9)
+```
+
+The three random forest models show very similar performance, but the all-features model achieves the highest AUC, making it the best-performing model overall in terms of classification ability.
+
+The feature importance plot below is computed from the best Random Forest model (selected by highest AUC across the three variants).
+
+```{r rf-importance, fig.width=6, fig.height=4, fig.cap="Top 10 Feature Importances (Best Random Forest by AUC)."}
+# Evaluate all 3 RF variants to pick the best
+e_rf_def   <- eval_clf(validation_y, predict(rf_default, test_df),
+                       predict(rf_default, test_df, type = "prob")[, pos],
+                       "Random Forest (Default)")
+e_rf_tuned <- eval_clf(validation_y, predict(rf_tuned, test_df),
+                       predict(rf_tuned, test_df, type = "prob")[, pos],
+                       "Random Forest (Tuned mtry)")
+e_rf_all   <- eval_clf(validation_y, predict(rf_all, test_df),
+                       predict(rf_all, test_df, type = "prob")[, pos],
+                       "Random Forest (All features)")
+
+best_rf_idx   <- which.max(c(e_rf_def$metrics$AUC,
+                              e_rf_tuned$metrics$AUC,
+                              e_rf_all$metrics$AUC))
+best_rf_model <- list(rf_default, rf_tuned, rf_all)[[best_rf_idx]]
+best_rf       <- list(e_rf_def, e_rf_tuned, e_rf_all)[[best_rf_idx]]
+
+importance_df <- as.data.frame(importance(best_rf_model))
+importance_df$Feature <- rownames(importance_df)
+top_features <- importance_df %>%
+  select(Feature, MeanDecreaseGini) %>%
+  arrange(desc(MeanDecreaseGini)) %>%
+  head(10)
+rownames(top_features) <- NULL
+
+ggplot(top_features, aes(x = reorder(Feature, MeanDecreaseGini),
+                         y = MeanDecreaseGini)) +
+  geom_col(fill = "#6A1B9A") +
+  coord_flip() +
+  labs(title = "Top 10 Important Features",
+       x = "Feature", y = "Importance (Mean Decrease Gini)") +
+  theme_minimal(base_size = 11) +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+`credit_score` is the most important feature, followed by `repayment_delay_days` and `missed_payments`, consistent with findings from the EDA and Logistic Regression coefficients.
+
+\newpage
+
+# Model Evaluation and Comparison
+
+```{r rebuild-lr-knn-evals}
+# Re-read the predictions saved in Section 5
+lp <- function(path) {
+  read_csv(path, show_col_types = FALSE) %>%
+    mutate(
+      default_flag = factor(default_flag, levels = c("No_Default", "Default")),
+      .pred_class  = factor(.pred_class,  levels = c("No_Default", "Default"))
+    )
+}
+preds_lr  <- lp("predictions_logistic_test.csv")
+preds_knn <- lp("predictions_knn_test.csv")
+
+e_lr  <- eval_clf(preds_lr$default_flag,  preds_lr$.pred_class,
+                  preds_lr$.pred_Default,  "Logistic Regression")
+e_knn <- eval_clf(preds_knn$default_flag, preds_knn$.pred_class,
+                  preds_knn$.pred_Default, "k-NN")
+```
+
+```{r rebuild-dt-eval}
+e_dt_def   <- eval_clf(validation_y,
+                        predict(dt_default, test_df, type = "class"),
+                        predict(dt_default, test_df, type = "prob")[, pos],
+                        "Decision Tree (Default)")
+e_dt_full  <- eval_clf(validation_y,
+                        predict(dt_full,    test_df, type = "class"),
+                        predict(dt_full,    test_df, type = "prob")[, pos],
+                        "Decision Tree (Full)")
+e_dt_pruned <- eval_clf(validation_y,
+                        predict(dt_pruned,  test_df, type = "class"),
+                        predict(dt_pruned,  test_df, type = "prob")[, pos],
+                        "Decision Tree (Pruned)")
+
+best_dt <- list(e_dt_def, e_dt_full, e_dt_pruned)[[
+  which.max(c(e_dt_def$metrics$AUC,
+              e_dt_full$metrics$AUC,
+              e_dt_pruned$metrics$AUC))]]
+```
+
+```{r final-metrics}
+final_metrics <- bind_rows(
+  e_lr$metrics, e_knn$metrics,
+  best_dt$metrics, best_rf$metrics
+)
+
+# Primary metrics: Recall and F1 Score
+primary_cols       <- c("Recall", "F1 Score")
+wins_primary       <- sapply(primary_cols, function(col) which.max(final_metrics[[col]]))
+primary_win_counts <- tabulate(wins_primary, nbins = nrow(final_metrics))
+names(primary_win_counts) <- final_metrics$Model
+
+final_metrics <- final_metrics %>%
+  mutate(PrimaryWins = primary_win_counts[Model]) %>%
+  arrange(desc(PrimaryWins), desc(AUC)) %>%
+  select(-PrimaryWins)
+
+best_model        <- final_metrics$Model[1]
+tbl_fmt           <- if (knitr::is_latex_output()) "latex" else "html"
+
+model_colors <- c(
+  "Logistic Regression"          = "#1565C0",
+  "k-NN"                         = "#2E7D32",
+  "Decision Tree (Default)"      = "#E65100",
+  "Decision Tree (Full)"         = "#BF360C",
+  "Decision Tree (Pruned)"       = "#FF6D00",
+  "Random Forest (Default)"      = "#6A1B9A",
+  "Random Forest (Tuned mtry)"   = "#4A148C",
+  "Random Forest (All features)" = "#9C27B0"
+)
+```
+
+As discussed in previous sections, 4 predictive models are trained based on 10,345 transactions. Their predictive performance is evaluated using five performance metrics: Recall, Specificity, Precision, F1 Score, and AUC. The model with the highest scores across different performance metrics is considered the best model.
+
+## ROC Curve Comparison
+
+```{r roc-plot, fig.width=6.5, fig.height=4, fig.cap="ROC curves for the four models on the test set."}
+bind_rows(
+  tibble(Model = e_lr$name,    fpr = 1 - e_lr$roc$specificities,    tpr = e_lr$roc$sensitivities),
+  tibble(Model = e_knn$name,   fpr = 1 - e_knn$roc$specificities,   tpr = e_knn$roc$sensitivities),
+  tibble(Model = best_dt$name, fpr = 1 - best_dt$roc$specificities, tpr = best_dt$roc$sensitivities),
+  tibble(Model = best_rf$name, fpr = 1 - best_rf$roc$specificities, tpr = best_rf$roc$sensitivities)
+) %>%
+  ggplot(aes(x = fpr, y = tpr, color = Model)) +
+  geom_path(linewidth = 0.8) +
+  geom_abline(linetype = "dashed", color = "grey55") +
+  coord_equal() +
+  scale_color_manual(values = model_colors) +
+  labs(x = "False Positive Rate", y = "True Positive Rate", color = NULL) +
+  theme_minimal(base_size = 11) +
+  theme(legend.position = "top", legend.text = element_text(size = 8))
+```
+
+Overall, their performance varies by different thresholds. The k-NN model stays closest to the diagonal, reflecting that it is the weakest overall classifier between defaulters and non-defaulters.
+
+## Metric Comparison
+
+```{r metric-chart, fig.width=7, fig.height=6, fig.cap="Five evaluation metrics for the four models."}
+final_metrics %>%
+  pivot_longer(cols      = c(Recall, AUC, `F1 Score`, Precision, Specificity),
+               names_to  = "Metric",
+               values_to = "Value") %>%
+  mutate(
+    Model  = factor(Model, levels = final_metrics$Model),
+    Metric = factor(Metric, levels = c("Recall", "F1 Score", "AUC", "Precision", "Specificity"))
+  ) %>%
+  ggplot(aes(x = Model, y = Value, fill = Model)) +
+  geom_col(width = 0.65, show.legend = FALSE) +
+  geom_text(aes(label = round(Value, 3)), vjust = -0.3, size = 2.3) +
+  facet_wrap(~Metric, ncol = 3, scales = "free_x") +
+  scale_fill_manual(values = model_colors) +
+  scale_y_continuous(limits = c(0, 1.12)) +
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) +
+  labs(x = NULL, y = "Score") +
+  theme_minimal(base_size = 9) +
+  theme(strip.text    = element_text(face = "bold", size = 9),
+        axis.text.x   = element_text(size = 6.5, lineheight = 0.85),
+        panel.spacing = unit(0.8, "lines"))
+```
+
+Logistic Regression leads on Recall and F1 Score, while Decision Tree (pruned) leads on Precision and Specificity. Both models win 2 out of 5 performance metrics.
+
+In order to define the best model between Logistic Regression and Decision Tree (pruned), the real world applications of BNPL companies should be considered. For BNPL companies, missing an undetected defaulter leads to unrecovered debts from unpaid instalments. In contrast, a false rejection from a reliable customer only represents losing a potential transaction. Therefore, the cost of missing an undetected defaulter is much higher than that of a false rejection from a reliable customer.
+
+In this case, Recall should be prioritised in order to capture as many potential defaulters as possible, so that BNPL companies can minimize their financial losses from unpaid installments. As a result, Logistic Regression, with the highest Recall (0.66), is considered the best model.
+
+## Confusion Matrix Results
+
+```{r cm-function}
+make_cm <- function(e) {
+  cm <- e$cm$table
+  tp <- cm["Default",    "Default"]
+  fp <- cm["Default",    "No_Default"]
+  fn <- cm["No_Default", "Default"]
+  tn <- cm["No_Default", "No_Default"]
+  tibble(
+    ` `                     = c("Actual: Default", "Actual: No_Default"),
+    `Predicted: Default`    = c(tp, fp),
+    `Predicted: No_Default` = c(fn, tn)
+  ) %>%
+    kable(booktabs = TRUE, format = tbl_fmt,
+          caption = paste0("Confusion Matrix: ", e$name)) %>%
+    kable_styling(latex_options = "HOLD_position", font_size = 10, position = "center")
+}
+```
+
+```{r cm-lr}
+make_cm(e_lr)
+```
+
+```{r cm-knn}
+make_cm(e_knn)
+```
+
+```{r cm-dt}
+make_cm(best_dt)
+```
+
+```{r cm-rf}
+make_cm(best_rf)
+```
+
+Since capturing more potential defaulters is prioritised, the model with the fewest False Negatives is preferred.
+
+```{r fn-table}
+get_fn <- function(e) e$cm$table["No_Default", "Default"]
+
+fn_tbl <- tibble(
+  Model = c(e_lr$name, e_knn$name, best_dt$name, best_rf$name),
+  `False Negatives (Missed Defaulters)` = as.integer(
+    c(get_fn(e_lr), get_fn(e_knn), get_fn(best_dt), get_fn(best_rf)))
+) %>% arrange(`False Negatives (Missed Defaulters)`)
+
+kable(fn_tbl, booktabs = TRUE, format = tbl_fmt,
+      caption = "False Negatives by Model") %>%
+  kable_styling(latex_options = "HOLD_position", font_size = 10, position = "center") %>%
+  row_spec(1, bold = TRUE)
+```
+
+Logistic Regression generates the lowest number of False Negatives (missed defaulters), further supporting its selection as the best model.
+
+## Interpretability
+
+```{r interp-table}
+interp_tbl <- final_metrics %>%
+  mutate(
+    Recall     = round(Recall, 4),
+    AUC        = round(AUC, 4),
+    `F1 Score` = round(`F1 Score`, 4),
+    Interpretability = case_when(
+      Model == "Logistic Regression"        ~ "High: coefficients quantify each predictor's effect",
+      Model == "k-NN"                       ~ "Low: no explicit model structure",
+      grepl("Decision Tree", Model)         ~ "High: decision rules are human-readable",
+      grepl("Random Forest", Model)         ~ "Low: aggregates hundreds of trees"
+    )
+  ) %>%
+  select(Model, Recall, AUC, `F1 Score`, Interpretability)
+
+kable(interp_tbl, booktabs = TRUE, format = tbl_fmt,
+      caption = "Interpretability Summary") %>%
+  kable_styling(latex_options = c("HOLD_position", "scale_down"),
+                font_size = 9, position = "center")
+```
+
+Both Logistic Regression and Decision Tree (pruned) are highly interpretable. Logistic Regression can be interpreted through its coefficients, while Decision Tree can be interpreted through its human-readable decision rules. In contrast, Random Forest and k-NN are less interpretable.
+
+## Best Model
+
+Firstly, Logistic Regression leads on 2 out of 5 performance metrics, which are Recall and F1 Score. Secondly, this model generates the lowest number of False Negatives (missed defaulters), which minimises the financial loss of BNPL companies. Thirdly, it is highly interpretable by BNPL companies and their customers, since it provides clear coefficients which shows how much each feature influences the probability of default. As a result, Logistic Regression is considered the best model.
+
+\newpage
+
+# Discussion and Recommendation
+
+Four models are built and compared for BNPL default prediction. Although Random Forest achieves the highest AUC, and Decision Tree has the best result on Specificity and Precision, these 2 models have relatively low Recall scores. In a BNPL context, low Recall will fail to identify the actual defaulters, leading to significant financial loss for BNPL companies. However, logistic regression achieves the highest Recall and F1 Score. Therefore, logistic regression is the best model we selected. A high recall score is meaningful and essential in the BNPL context, as missing defaulters is significantly more costly than incorrectly flagging low-risk customers.
+
+We evaluate Recall, Precision, and F1 on the test set using different thresholds. A customer is classified as Default if the predicted probability exceeds the threshold, with Default treated as the positive class.
+
+```{r threshold-table}
+lv        <- levels(train_df$default_flag)
+event_lvl <- "second"
+
+rec_l   <- recipe(default_flag ~ ., data = train_df) %>%
+  step_normalize(all_numeric_predictors())
+lr_spec <- logistic_reg() %>% set_engine("glm") %>% set_mode("classification")
+wf_l    <- workflow() %>% add_recipe(rec_l) %>% add_model(lr_spec)
+set.seed(42)
+fit_l     <- fit(wf_l, data = train_df)
+test_aug  <- augment(fit_l, test_df)
+
+thresholds <- c(0.30, 0.40, 0.50, 0.60)
+
+tbl_thr <- tibble(threshold = thresholds) %>%
+  mutate(
+    res = purrr::map(threshold, function(t) {
+      d <- test_aug %>%
+        mutate(
+          .pred_t = dplyr::if_else(
+            .pred_Default >= t,
+            factor("Default",    levels = lv),
+            factor("No_Default", levels = lv)
+          )
+        )
+      tibble(
+        Recall    = yardstick::sens(d,      truth = default_flag, estimate = .pred_t, event_level = event_lvl)$.estimate,
+        Precision = yardstick::precision(d, truth = default_flag, estimate = .pred_t, event_level = event_lvl)$.estimate,
+        F1        = yardstick::f_meas(d,    truth = default_flag, estimate = .pred_t, event_level = event_lvl, beta = 1)$.estimate
+      )
+    })
+  ) %>%
+  tidyr::unnest(res) %>%
+  mutate(
+    threshold = formatC(threshold, format = "f", digits = 2),
+    Recall    = formatC(Recall,    format = "f", digits = 4),
+    Precision = formatC(Precision, format = "f", digits = 4),
+    F1        = formatC(F1,        format = "f", digits = 4)
+  )
+
+kable(
+  tbl_thr,
+  booktabs = TRUE,
+  caption  = "Effect of classification threshold: Logistic regression (test set, positive class = Default)."
+) %>%
+  kable_styling(
+    latex_options = c("hold_position", "scale_down"),
+    font_size     = 9,
+    full_width    = FALSE
+  ) %>%
+  row_spec(1, bold = TRUE)
+```
+
+Based on threshold analysis, a classification threshold of **0.30** is selected for Logistic Regression. This threshold is chosen because it achieves the highest recall, improving the ability of model to capture high-risk customers, while maintaining a good performance on precision and F1 Score.
+
+From the business perspective, the Logistic Regression model can provide some clear and actionable key insights for BNPL management. Firstly, we find that customers with poor repayment behaviour (like frequent repayment delays or missed payments), lower credit scores, greater purchase amount, are more likely to default. And these customers should therefore get stricter monitoring and credit control from the platform. Additionally, some demographic and behavioural factors have limited influence on default risk. Customers from India and purchases in the Home category show a slight association with higher default risk. But these effects are much weaker compared to core financial indicators. On the other hand, customers with strong credit scores and stable repayment histories are generally more reliable and less likely to default, and they represent the low-risk segment of the platform.
+
+To reduce default risk and improve credit performance, we make the following suggestions for the BNPL business-related companies. Firstly, stricter approval rules or lower credit limits should be applied to the customers with weak repayment behaviour. Secondly, the credit score should be employed as the primary filtering criterion in the approval process, placing low-score customers under tighter lending conditions. Thirdly, additional checks should be performed on large purchase transactions, as it relates to the higher probability of default risk.
+
+\newpage
+
+# Limitations
+
+In this project, there are several limitations to be acknowledged.
+
+Firstly, there are only 17 features in this dataset initially, 5 of which are excluded from analysis. Therefore, there are only 12 factors available for model building. More importantly, external factors (such as inflation and economic recession), which might influence the creditworthiness of customers, are not captured in this dataset. Therefore, the predictive performance of models is affected by the limited number of available features.
+
+Secondly, this dataset is employed from Kaggle, which means that the data might be synthetic or simplified for educational purposes. In contrast, real-world BNPL transaction data is collected from real customer backgrounds and their behaviours over time. Therefore, this dataset might not accurately capture the complexity and variability of real customer behaviours, such as irregular repayment patterns or sudden changes in financial situation. As a result, the models trained on this dataset might not be suitable for real-world applications.
+
+Thirdly, the models only predict whether customers default on their payments, yet the magnitude of financial loss to BNPL companies is not considered. In real-world practices, although customers default on their payments, the financial loss to BNPL companies might differ significantly. For example, customer A may owe a far larger outstanding balance than customer B, yet both of them would be classified identically as "**Default**" by the models. Therefore, it is not practical for BNPL companies to solely look at default risk prediction to determine their financial impacts. Outstanding balance should also be considered to better assess the true financial risk of approving new customers.
+
+\newpage
+
+# Conclusion
+
+To conclude, this project aims to develop a predictive model that assists BNPL companies in effectively assessing the default risk of customers. Four models are trained and evaluated: KNN, Logistic Regression, Decision Tree, and Random Forest. Their performance was evaluated across five metrics: Precision, Recall, F1 Score, AUC, and Specificity.
+
+Across the four models, the best model is Logistic Regression, which achieves the highest score in two out of five performance metrics (Recall and F1 Score). Therefore, this model is the most suitable model to predict customer default risk in BNPL transactions. Within this model, the ideal classification threshold is 0.3, which captures the greatest number of actual defaulters (highest Recall), while at the same time maintaining the best balance between Recall and Precision (highest F1 Score). Furthermore, this model is highly interpretable for BNPL companies to determine the most important features that influence the credit risk of customers.
+
+However, there are several limitations to be considered. The dataset is sourced from Kaggle, which might not fully reflect the complexity of real-world customer behaviours. Moreover, there is a limited number of features adopted for model training. Therefore, this might affect the predictive performance and might not provide a comprehensive view of the real-world applications. It is recommended to include more features, such as outstanding balance, inflation, and economic recession, to better assess the default risk of customers.
+
+\newpage
+
+# References
+
+Peterdy, K. (2023, January 18). *BNPL (Buy Now, Pay Later)*. Corporate Finance Institute. https://corporatefinanceinstitute.com/resources/commercial-lending/bnpl-buy-now-pay-later/
+
+Udavant, S. (2025, March 5). *What Is Buy Now, Pay Later?* Investopedia. https://www.investopedia.com/buy-now-pay-later-5182291
