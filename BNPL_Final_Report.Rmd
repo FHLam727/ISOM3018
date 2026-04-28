@@ -1,10 +1,8 @@
 ---
-title: "BNPL Credit Risk — Predictive Modelling"
-subtitle: "ISOM3018 Course Project"
+title: ""
 output:
   pdf_document:
-    toc: true
-    toc_depth: 2
+    toc: false
     number_sections: true
     latex_engine: xelatex
     fig_crop: false
@@ -15,6 +13,18 @@ header-includes:
   - \usepackage{xcolor}
   - \usepackage{sectsty}
   - \allsectionsfont{\centering}
+  - \usepackage{fancyhdr}
+  - \usepackage{caption}
+  - \pagestyle{fancy}
+  - \fancyhf{}
+  - \fancyfoot[C]{\thepage}
+  - \renewcommand{\headrulewidth}{0pt}
+  - \usepackage{graphicx}
+  - \usepackage{geometry}
+  - \usepackage{hyperref}
+  - \captionsetup{singlelinecheck=false}
+  - \captionsetup[table]{justification=centering,position=top}
+  - \captionsetup[figure]{justification=centering}
 ---
 
 ```{r setup, include=FALSE}
@@ -27,6 +37,40 @@ knitr::opts_chunk$set(
   out.extra  = ""
 )
 ```
+
+
+\thispagestyle{empty}
+\begin{center}
+\vspace*{2.5cm}
+
+\includegraphics[width=0.45\textwidth]{um_logo.jpg}
+
+\vspace{1.5cm}
+
+{\Large\textbf{ISOM3018}}\\[0.4cm]
+{\Large\textbf{Business Data Mining and Visualisation}}\\[0.3cm]
+{\Large\textbf{Course Project}}
+
+\vspace{2cm}
+
+{\normalsize Presented by:}\\[0.5cm]
+{\normalsize BC204341 Wong Iat Tong, Vilena}\\[0.2cm]
+{\normalsize BC204712 Fong Hio Lam, Andrea}\\[0.2cm]
+{\normalsize BC204733 Ruth Tan}\\[0.2cm]
+{\normalsize BC208903 Li Guixin, Kelly}\\[0.2cm]
+{\normalsize BC304745 Kuok Hio Lam, Tiffany}
+
+\end{center}
+
+\newpage
+
+\pagenumbering{roman}
+\setcounter{page}{1}
+\hypersetup{linkcolor=black}
+\tableofcontents
+\newpage
+\pagenumbering{arabic}
+\setcounter{page}{1}
 
 ```{r libraries}
 # ── All libraries in one place ─────────────────────────────────────────────────
@@ -75,7 +119,6 @@ validation_y <- test_df$default_flag
 pos          <- "Default"
 ```
 
-\newpage
 
 # Introduction
 
@@ -127,13 +170,21 @@ This model makes use of hundreds of decision trees to make better decisions, wit
 
 For example, according to Table 1, 2 out of 3 decision trees predict that this new customer will default on his payment. Therefore, the final classification of that customer is "**Defaulted**".
 
-| Decision Trees | Feature | Prediction Result |
-|---|---|---|
-| 1 | Age | Defaulted |
-| 2 | Repayment delay days | Defaulted |
-| 3 | Credit score | Paid on time |
+```{r rf-example-table}
+rf_example_tbl <- tibble(
+  `Decision Trees`    = c(1, 2, 3),
+  Feature            = c("Age", "Repayment delay days", "Credit score"),
+  `Prediction Result` = c("Defaulted", "Defaulted", "Paid on time")
+)
 
-Table 1. An Example of Final Prediction Result Using Random Forest
+kable(
+  rf_example_tbl,
+  caption = "An Example of Final Prediction Result Using Random Forest",
+  booktabs = TRUE,
+  align = c("c", "l", "l")
+) %>%
+  kable_styling(latex_options = c("hold_position"), full_width = FALSE, position = "center")
+```
 
 These models are compared using several performance metrics. The model that achieves the highest score across these performance metrics is considered the best predictive model.
 
@@ -229,7 +280,7 @@ kable(desc_stats,
 - **Repayment Delay Days** averages 8.7 days, with some users delaying up to 33 days. **Missed Payments** ranges up to 7, and **Debt-to-Income Ratio** reaches 0.72. The extreme values in these three variables are removed in the preprocessing stage.
 ## Target Variable Distribution
 
-```{r target-distribution, fig.width=4, fig.height=3}
+```{r target-distribution, fig.width=4, fig.height=3, fig.cap="Distribution of Default Status."}
 df %>%
   count(default_flag) %>%
   mutate(pct   = n / sum(n),
@@ -249,7 +300,7 @@ df %>%
 
 ## Default Rate by Employment Type
 
-```{r employment-default, fig.width=4.5, fig.height=3}
+```{r employment-default, fig.width=4.5, fig.height=3, fig.cap="Default Rate by Employment Type."}
 df %>%
   group_by(employment_type) %>%
   summarise(total   = n(),
@@ -271,7 +322,7 @@ df %>%
 
 ## Credit Score Distribution by Default Status
 
-```{r credit-score-pyramid, fig.width=5, fig.height=3.5}
+```{r credit-score-pyramid, fig.width=5, fig.height=3.5, fig.cap="Credit Score Distribution by Default Status."}
 pyramid_data <- df %>%
   mutate(score_band = cut(credit_score,
                           breaks = seq(300, 850, by = 50),
@@ -305,7 +356,7 @@ ggplot(pyramid_data, aes(x = n_plot, y = score_band, fill = default_flag)) +
 
 ## Missed Payments & Repayment Delay vs. Default
 
-```{r missed-payments, fig.width=4, fig.height=3}
+```{r missed-payments, fig.width=4, fig.height=3, fig.cap="Missed Payments by Default Status."}
 ggplot(df, aes(x = default_flag, y = missed_payments, fill = default_flag)) +
   geom_boxplot(show.legend = FALSE, outlier.alpha = 0.3) +
   scale_fill_manual(values = c("No Default" = "#2196F3", "Default" = "#F44336")) +
@@ -317,7 +368,7 @@ ggplot(df, aes(x = default_flag, y = missed_payments, fill = default_flag)) +
 
 **Interpretation:** Defaulters have a wider distribution and a higher upper quartile of missed payments compared to non-defaulters. Users who repeatedly miss payments (e.g., 2 or more) are more likely to default.
 
-```{r repayment-delay, fig.width=4, fig.height=3}
+```{r repayment-delay, fig.width=4, fig.height=3, fig.cap="Repayment Delay (Days) by Default Status."}
 ggplot(df, aes(x = default_flag, y = repayment_delay_days, fill = default_flag)) +
   geom_boxplot(show.legend = FALSE, outlier.alpha = 0.3) +
   scale_fill_manual(values = c("No Default" = "#2196F3", "Default" = "#F44336")) +
@@ -331,7 +382,7 @@ ggplot(df, aes(x = default_flag, y = repayment_delay_days, fill = default_flag))
 
 ## Debt-to-Income Ratio vs. Default
 
-```{r dti-default, fig.width=4.5, fig.height=3}
+```{r dti-default, fig.width=4.5, fig.height=3, fig.cap="Debt-to-Income Ratio by Default Status."}
 ggplot(df, aes(x = default_flag, y = debt_to_income_ratio, fill = default_flag)) +
   geom_boxplot(show.legend = FALSE, outlier.alpha = 0.3) +
   scale_fill_manual(values = c("No Default" = "#2196F3", "Default" = "#F44336")) +
@@ -346,7 +397,7 @@ ggplot(df, aes(x = default_flag, y = debt_to_income_ratio, fill = default_flag))
 
 ## Default Rate by Product Category
 
-```{r product-default, fig.width=5, fig.height=3}
+```{r product-default, fig.width=5, fig.height=3, fig.cap="Default Rate by Product Category."}
 df %>%
   group_by(product_category) %>%
   summarise(total   = n(),
@@ -368,7 +419,7 @@ df %>%
 
 ## Correlation Heatmap of Numerical Variables
 
-```{r correlation-heatmap, fig.width=5.5, fig.height=4}
+```{r correlation-heatmap, fig.width=5.5, fig.height=4, fig.cap="Correlation Heatmap of Numerical Variables."}
 cor_data <- df %>%
   select(age, monthly_income, credit_score, purchase_amount,
          repayment_delay_days, missed_payments,
@@ -619,7 +670,7 @@ kable(leaf_counts, caption = "Decision Tree Complexity (Leaf Count)",
 
 According to the tree complexity results above, the full tree is too deep for visualization and is ineffective to show. Therefore, only the default and pruned tree are being visualized. The visualization shows which combination of the factors will be classified as default or not.
 
-```{r dt-plot-default, fig.width=8, fig.height=6, fig.cap="Decision Tree (Default)."}
+```{r dt-plot-default, fig.width=9, fig.height=7, out.width="\\textwidth", fig.align="center", fig.cap="Decision Tree (Default)."}
 rpart.plot(dt_default,
            main          = "Decision Tree (Default)",
            fallen.leaves = TRUE,
@@ -928,8 +979,6 @@ make_cm(best_dt)
 make_cm(best_rf)
 ```
 
-Since capturing more potential defaulters is prioritised, the model with the fewest False Negatives is preferred.
-
 ```{r fn-table}
 get_fn <- function(e) e$cm$table["No_Default", "Default"]
 
@@ -944,6 +993,8 @@ kable(fn_tbl, booktabs = TRUE, format = tbl_fmt,
   kable_styling(latex_options = "HOLD_position", font_size = 10, position = "center") %>%
   row_spec(1, bold = TRUE)
 ```
+
+Since capturing more potential defaulters is prioritised, the model with the fewest False Negatives is preferred.
 
 Logistic Regression generates the lowest number of False Negatives (missed defaulters), further supporting its selection as the best model.
 
