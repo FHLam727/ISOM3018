@@ -73,7 +73,7 @@ knitr::opts_chunk$set(
 \setcounter{page}{1}
 
 ```{r libraries}
-# ── All libraries in one place ─────────────────────────────────────────────────
+# import libraries
 library(tidyverse)
 library(scales)
 library(knitr)
@@ -89,7 +89,7 @@ library(randomForest)
 ```
 
 ```{r load-data}
-# ── Load raw data (EDA) ────────────────────────────────────────────────────────
+# load raw data for EDA
 df <- read_csv("Buy_Now_Pay_Later_BNPL_CreditRisk_Dataset.csv") %>%
   mutate(
     default_flag      = factor(default_flag, levels = c(0, 1),
@@ -101,7 +101,6 @@ df <- read_csv("Buy_Now_Pay_Later_BNPL_CreditRisk_Dataset.csv") %>%
     transaction_date  = mdy(transaction_date)
   )
 
-# ── Load preprocessed train / test splits (Modelling) ─────────────────────────
 train_df <- readRDS("train_df.rds")
 test_df  <- readRDS("test_df.rds")
 
@@ -110,7 +109,7 @@ if (!identical(names(train_df), names(test_df))) {
   test_df <- test_df %>% select(all_of(names(train_df)))
 }
 
-# Ensure factor levels are consistent for caret / pROC
+# Ensure factor levels are consistent
 train_df$default_flag <- factor(train_df$default_flag,
                                 levels = c("No_Default", "Default"))
 test_df$default_flag  <- factor(test_df$default_flag,
@@ -462,7 +461,6 @@ After column and outlier removal, the categorical variables are cast to factors.
 # Modeling
 
 ```{r eval-helper}
-# ── Shared evaluation helper used in Section 6 ────────────────────────────────
 eval_clf <- function(truth, pred_class, pred_prob, name) {
   truth      <- factor(truth,      levels = c("No_Default", "Default"))
   pred_class <- factor(pred_class, levels = c("No_Default", "Default"))
@@ -473,7 +471,7 @@ eval_clf <- function(truth, pred_class, pred_prob, name) {
   list(
     name = name, cm = cm, roc = roc_obj,
     metrics = tibble(
-      Model       = name,
+      Model       = name,g,
       Recall      = as.numeric(cm$byClass["Sensitivity"]),
       Specificity = as.numeric(cm$byClass["Specificity"]),
       Precision   = as.numeric(cm$byClass["Precision"]),
