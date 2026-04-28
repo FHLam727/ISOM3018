@@ -276,6 +276,7 @@ kable(desc_stats,
 - **Monthly Income** ranges widely, with extreme high values identified as outliers.
 - **Credit Score** ranges from 300 to 850, with a median of 403, suggesting many users have low creditworthiness.
 - **Repayment Delay Days** averages 8.7 days, with some users delaying up to 33 days. **Missed Payments** ranges up to 7, and **Debt-to-Income Ratio** reaches 0.72. The extreme values in these three variables are removed in the preprocessing stage.
+
 ## Target Variable Distribution
 
 ```{r target-distribution, fig.width=4, fig.height=3, fig.cap="Distribution of Default Status."}
