@@ -73,7 +73,6 @@ knitr::opts_chunk$set(
 \setcounter{page}{1}
 
 ```{r libraries}
-# import libraries
 library(tidyverse)
 library(scales)
 library(knitr)
@@ -89,7 +88,7 @@ library(randomForest)
 ```
 
 ```{r load-data}
-# load raw data for EDA
+# Load raw data for EDA 
 df <- read_csv("Buy_Now_Pay_Later_BNPL_CreditRisk_Dataset.csv") %>%
   mutate(
     default_flag      = factor(default_flag, levels = c(0, 1),
@@ -471,7 +470,7 @@ eval_clf <- function(truth, pred_class, pred_prob, name) {
   list(
     name = name, cm = cm, roc = roc_obj,
     metrics = tibble(
-      Model       = name,g,
+      Model       = name,
       Recall      = as.numeric(cm$byClass["Sensitivity"]),
       Specificity = as.numeric(cm$byClass["Specificity"]),
       Precision   = as.numeric(cm$byClass["Precision"]),
@@ -527,7 +526,6 @@ kable(coef_tbl, booktabs = TRUE,
 With 95% confidence level, `repayment_delay_days`, `purchase_amount`, and `missed_payments` have positive coefficients, relating to higher default risk. `credit_score`, `debt_to_income_ratio`, `employment_type_Unemployed`, and `employment_type_Student` have negative coefficients, indicating lower default risk. Among them, `credit_score` and `repayment_delay_days` have the largest impact.
 
 ```{r logistic-predictions}
-# Save predictions for use in Section 6
 test_aug_lr  <- augment(fit_logistic, test_df)
 pred_cols_lr <- names(test_aug_lr)[startsWith(names(test_aug_lr), ".pred_")]
 
@@ -639,17 +637,20 @@ Pruned Tree:
 In order to solve possible overfitting issues, the full tree is pruned using the optimal complexity parameter (cp) selected by the minimum cross-validated error (xerror). 
 
 ```{r dt-fit}
+#Build default, full and pruned decision tree
 set.seed(42)
 dt_default <- rpart(default_flag ~ ., data = train_df, method = "class")
 
 dt_full <- rpart(default_flag ~ ., data = train_df, method = "class",
   control = rpart.control(cp = 0, minsplit = 2, minbucket = 1, maxdepth = 30, xval = 10))
 
+#Prune the tree by minimum cross-validated error (xerror)
 best_cp  <- dt_full$cptable[which.min(dt_full$cptable[, "xerror"]), "CP"]
 dt_pruned <- prune(dt_full, cp = best_cp)
 ```
 
 ```{r dt-complexity}
+#Count the leaves, splits and nodes
 count_leaves <- function(fit) sum(fit$frame$var == "<leaf>")
 count_splits <- function(fit) sum(fit$frame$var != "<leaf>")
 count_nodes  <- function(fit) nrow(fit$frame)
@@ -669,6 +670,7 @@ kable(leaf_counts, caption = "Decision Tree Complexity (Leaf Count)",
 According to the tree complexity results above, the full tree is too deep for visualization and is ineffective to show. Therefore, only the default and pruned tree are being visualized. The visualization shows which combination of the factors will be classified as default or not.
 
 ```{r dt-plot-default, fig.width=9, fig.height=7, out.width="\\textwidth", fig.align="center", fig.cap="Decision Tree (Default)."}
+#Visualization of the default tree
 rpart.plot(dt_default,
            main          = "Decision Tree (Default)",
            fallen.leaves = TRUE,
@@ -684,6 +686,7 @@ rpart.plot(dt_default,
 \newpage
 
 ```{r dt-plot-pruned, fig.width=20, fig.height=18, out.width="\\textwidth", out.height="\\textheight", fig.cap="Decision Tree (Pruned)."}
+#Visualization of the pruned tree
 rpart.plot(dt_pruned,
            main          = "Decision Tree (Pruned)",
            fallen.leaves = FALSE,
@@ -702,6 +705,7 @@ rpart.plot(dt_pruned,
 ### Decision Tree Model Performance
 
 ```{r dt-performance}
+#Performance of the three trees
 dt_results <- bind_rows(
   eval_clf(validation_y,
            predict(dt_default, test_df, type = "class"),
@@ -726,9 +730,10 @@ The pruned decision tree provides the best overall performance by having the hig
 
 ## Random Forest
 
-Random Forest Models are built to improve predictive performance and reduce overfitting compared to decision trees. Three versions are built: a default model, a tuned model with optimized mtry based on out-of-bag (OOB) error.
+Random Forest Models are built to improve predictive performance and reduce overfitting compared to decision trees. Three versions are built: a default model, a model with all features and a tuned model with optimized mtry based on out-of-bag (OOB) error.
 
 ```{r rf-fit}
+#Build two random forest models (default, all features and tuned)
 set.seed(42)
 rf_default <- randomForest(default_flag ~ ., data = train_df, importance = TRUE)
 
@@ -750,6 +755,7 @@ rf_all   <- randomForest(default_flag ~ ., data = train_df,
 ### Random Forest Model Performance
 
 ```{r rf-performance}
+#Performance of the three models
 e_rf_def   <- eval_clf(validation_y, predict(rf_default, test_df),
                        predict(rf_default, test_df, type = "prob")[, pos],
                        "Random Forest (Default)")
@@ -776,7 +782,7 @@ The three random forest models show very similar performance, but the all-featur
 The feature importance plot below is computed from the best Random Forest model (selected by highest AUC across the three variants).
 
 ```{r rf-importance, fig.width=6, fig.height=4, fig.cap="Top 10 Feature Importances (Best Random Forest by AUC)."}
-# Evaluate all 3 RF variants to pick the best
+# Evaluate all 3 model to pick the best
 e_rf_def   <- eval_clf(validation_y, predict(rf_default, test_df),
                        predict(rf_default, test_df, type = "prob")[, pos],
                        "Random Forest (Default)")
@@ -793,6 +799,7 @@ best_rf_idx   <- which.max(c(e_rf_def$metrics$AUC,
 best_rf_model <- list(rf_default, rf_tuned, rf_all)[[best_rf_idx]]
 best_rf       <- list(e_rf_def, e_rf_tuned, e_rf_all)[[best_rf_idx]]
 
+#Top 10 important features by the best random forest model
 importance_df <- as.data.frame(importance(best_rf_model))
 importance_df$Feature <- rownames(importance_df)
 top_features <- importance_df %>%
